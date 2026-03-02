@@ -21,13 +21,6 @@ export interface MutineerConfig {
   readonly testPatterns?: readonly string[]
   readonly extensions?: readonly string[]
   readonly autoDiscover?: boolean
-  /**
-   * Control how Vitest output is handled for mutant runs:
-   * - 'mute' (default) suppresses all output
-   * - 'minimal' echoes only pass/fail summaries
-   * - 'inherit' streams full Vitest output to the CLI
-   */
-  readonly mutantOutput?: 'mute' | 'minimal' | 'inherit'
   readonly minKillPercent?: number
   /** Preferred test runner (defaults to vitest) */
   readonly runner?: 'vitest' | 'jest'

@@ -154,17 +154,6 @@ export default defineMutineerConfig({
 | `baseRef`           | `string`                           | Git ref for `--changed` (default: `origin/main`) |
 | `testPatterns`      | `string[]`                         | Globs for test file discovery                    |
 | `extensions`        | `string[]`                         | File extensions to consider                      |
-| `mutantOutput`      | `'mute' \| 'minimal' \| 'inherit'` | Control test runner output during mutation runs  |
-
-### Show Mutation Test Output
-
-Mutant runs mute test output by default. Set `mutantOutput` in your config to see what's happening:
-
-```typescript
-export default defineMutineerConfig({
-  mutantOutput: 'inherit', // full output, or 'minimal' for pass/fail only
-})
-```
 
 ## File Support
 
