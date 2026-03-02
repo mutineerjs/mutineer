@@ -24,7 +24,7 @@ Built for **Vitest** with first-class **Jest** support. Other test runners can b
 
 Mutations are applied using Babel AST analysis, so operators inside strings and comments are never touched. Mutated code is injected at runtime via Vite plugins (Vitest) or custom resolvers (Jest) -- no files on disk are modified.
 
-## Supported Mutations
+## Supported Mutations (WIP)
 
 | Category   | Mutator         | Transformation     |
 | ---------- | --------------- | ------------------ |
