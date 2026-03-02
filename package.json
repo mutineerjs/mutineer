@@ -1,6 +1,6 @@
 {
-  "name": "mutineer",
-  "version": "0.1.0",
+  "name": "@mutineerjs/mutineer",
+  "version": "v0.1.0",
   "type": "module",
   "private": true,
   "bin": {
