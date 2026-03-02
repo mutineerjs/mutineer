@@ -1,0 +1,13 @@
+{
+  "name": "mutineer-example-vitest",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "mutate": "MUTINEER_DEBUG=0 ../../dist/bin/mutineer.js --config mutineer.config.ts"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.4",
+    "vitest": "^3.1.1"
+  }
+}
