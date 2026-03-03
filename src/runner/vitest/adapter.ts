@@ -136,7 +136,14 @@ export class VitestAdapter implements TestRunnerAdapter {
 
   constructor(options: TestRunnerAdapterOptions) {
     this.options = options
-    this.vitestPath = resolveVitestPath()
+
+    try {
+      this.vitestPath = resolveVitestPath()
+    } catch {
+      throw new Error(
+        "Cannot find 'vitest'. Install it with: npm i -D vitest",
+      )
+    }
 
     // Prepare base args by stripping mutineer-specific flags
     const stripped = stripMutineerArgs(options.cliArgs)
