@@ -48,20 +48,8 @@ Mutations are applied using Babel AST analysis, so operators inside strings and 
 
 ## Installation
 
-Mutineer is not yet published to npm. Install it locally by linking:
-
 ```bash
-# Clone and build
-git clone <repo-url> mutineer
-cd mutineer
-npm install
-npm run build
-
-# Link globally
-npm link
-
-# In your project directory
-npm link mutineer
+npm i @mutineerjs/mutineer
 ```
 
 ## Usage

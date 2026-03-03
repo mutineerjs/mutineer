@@ -2,7 +2,7 @@
   "name": "@mutineerjs/mutineer",
   "version": "v0.1.0",
   "type": "module",
-  "private": true,
+  "private": false,
   "bin": {
     "mutineer": "./dist/bin/mutineer.js"
   },
