@@ -3,7 +3,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import os from 'node:os'
 import fssync from 'node:fs'
-import { normalizePath } from 'vite'
+import { normalizePath } from '../../utils/normalizePath.js'
 import { autoDiscoverTargetsAndTests } from '../discover.js'
 
 // Mock Vite server creation to avoid opening a real port during tests

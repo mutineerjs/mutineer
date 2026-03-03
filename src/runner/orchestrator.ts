@@ -12,7 +12,7 @@
 
 import path from 'node:path'
 import os from 'node:os'
-import { normalizePath } from 'vite'
+import { normalizePath } from '../utils/normalizePath.js'
 import { render, type Instance } from 'ink'
 import { createElement } from 'react'
 

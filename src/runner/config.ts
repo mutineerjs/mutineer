@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import type { MutineerConfig } from '../index.js'
-import { loadConfigFromFile } from 'vite'
+
 import { createLogger } from '../utils/logger.js'
 
 // Constants
@@ -100,6 +100,7 @@ export async function loadMutineerConfig(
  */
 async function loadTypeScriptConfig(filePath: string): Promise<unknown> {
   try {
+    const { loadConfigFromFile } = await import('vite')
     const loaded = await loadConfigFromFile(VITE_CONFIG_OPTIONS, filePath)
     return loaded?.config ?? {}
   } catch (err) {

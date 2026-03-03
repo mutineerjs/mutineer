@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process'
 import path from 'node:path'
 import fs from 'node:fs'
 import { createRequire } from 'node:module'
-import { normalizePath } from 'vite'
+import { normalizePath } from '../utils/normalizePath.js'
 import { createLogger } from '../utils/logger.js'
 
 const log = createLogger('changed')

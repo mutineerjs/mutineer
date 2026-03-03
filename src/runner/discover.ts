@@ -1,13 +1,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import { createRequire } from 'node:module'
 import fg from 'fast-glob'
-import {
-  createServer,
-  normalizePath,
-  type Logger,
-  type PluginOption,
-  type ViteDevServer,
-} from 'vite'
+import { normalizePath } from '../utils/normalizePath.js'
 import type { MutateTarget, MutineerConfig } from '../types/config.js'
 import { createLogger } from '../utils/logger.js'
 
@@ -29,6 +24,9 @@ export interface DiscoveryResult {
 
 const log = createLogger('discover')
 const MAX_CRAWL_DEPTH = 12
+
+/** A function that resolves an import specifier to an absolute path. */
+type ResolveFn = (specOrAbs: string, importer?: string) => Promise<string>
 
 function toArray<T>(v?: readonly T[] | T | null): T[] {
   if (Array.isArray(v)) return [...v]
@@ -52,42 +50,6 @@ function isValidResolvedPath(resolved: unknown): resolved is string {
   return typeof resolved === 'string' && resolved.length > 0
 }
 
-/**
- * Resolve an import spec to a normalized id (query stripped).
- * Falls back to the original spec when resolution fails.
- */
-async function resolveId(
-  server: ViteDevServer,
-  specOrAbs: string,
-  importer?: string,
-): Promise<string> {
-  if (path.isAbsolute(specOrAbs)) return normalizePath(path.resolve(specOrAbs))
-  try {
-    const resolved = await server.pluginContainer.resolveId(specOrAbs, importer)
-
-    // Extract id from ResolveId result (can be string or object with id property)
-    let candidateId: string | undefined
-    if (isValidResolvedPath(resolved)) {
-      candidateId = resolved
-    } else if (resolved && typeof resolved === 'object' && 'id' in resolved) {
-      const { id } = resolved as { id?: unknown }
-      if (isValidResolvedPath(id)) candidateId = id
-    }
-
-    // Strip query string and normalize path
-    if (candidateId) {
-      const q = candidateId.indexOf('?')
-      return normalizePath(q >= 0 ? candidateId.slice(0, q) : candidateId)
-    }
-
-    // Fallback to original spec if resolution failed
-    return normalizePath(specOrAbs)
-  } catch {
-    // Resolver may throw for virtual or unsupported ids; fall back to spec
-    return normalizePath(specOrAbs)
-  }
-}
-
 function isUnder(anyAbs: string, rootsAbs: readonly string[]): boolean {
   const n = normalizePath(anyAbs)
   return rootsAbs.some((r) => n.startsWith(normalizePath(r)))
@@ -104,22 +66,6 @@ function extractImportSpecs(code: string): string[] {
     if (m && m[1]) out.push(m[1])
   }
   return out
-}
-
-async function loadPlugins(exts: Set<string>): Promise<PluginOption[]> {
-  if (!exts.has('.vue')) return []
-
-  try {
-    const mod = await import('@vitejs/plugin-vue')
-    const vue = (mod as { default?: unknown }).default ?? mod
-    return typeof vue === 'function' ? [(vue as () => PluginOption)()] : []
-  } catch (err) {
-    const detail = err instanceof Error ? err.message : String(err)
-    log.warn(
-      `Unable to load @vitejs/plugin-vue; Vue SFC imports may fail to resolve (${detail})`,
-    )
-    return []
-  }
 }
 
 /**
@@ -147,6 +93,152 @@ function isExcludedPath(
         ).test(rel)
       : rel.startsWith(pattern)
   })
+}
+
+// ---------------------------------------------------------------------------
+// Resolver strategies
+// ---------------------------------------------------------------------------
+
+/**
+ * Create a Vite-based resolver using a dev server for alias/tsconfig path resolution.
+ * Returns the resolver function and a cleanup function to close the server.
+ */
+async function createViteResolver(
+  rootAbs: string,
+  exts: Set<string>,
+): Promise<{ resolve: ResolveFn; cleanup: () => Promise<void> }> {
+  const { createServer } = await import('vite')
+  type PluginOption = import('vite').PluginOption
+  type ViteDevServer = import('vite').ViteDevServer
+
+  // Load Vue plugin if needed
+  let plugins: PluginOption[] = []
+  if (exts.has('.vue')) {
+    try {
+      const mod = await import('@vitejs/plugin-vue')
+      const vue = (mod as { default?: unknown }).default ?? mod
+      plugins = typeof vue === 'function' ? [(vue as () => PluginOption)()] : []
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err)
+      log.warn(
+        `Unable to load @vitejs/plugin-vue; Vue SFC imports may fail to resolve (${detail})`,
+      )
+    }
+  }
+
+  const quietLogger = {
+    hasWarned: false,
+    info() {},
+    warn() {},
+    warnOnce() {},
+    error(msg: string | { message?: string }) {
+      if (
+        typeof msg === 'string' &&
+        msg.includes('WebSocket server error') &&
+        msg.includes('listen EPERM')
+      )
+        return
+      log.error(typeof msg === 'string' ? msg : String(msg))
+    },
+    clearScreen() {},
+    hasErrorLogged() {
+      return false
+    },
+  }
+
+  const server: ViteDevServer = await createServer({
+    root: rootAbs,
+    logLevel: 'error',
+    customLogger: quietLogger,
+    clearScreen: false,
+    server: { middlewareMode: true, hmr: false },
+    plugins,
+  })
+
+  const resolve: ResolveFn = async (specOrAbs, importer) => {
+    if (path.isAbsolute(specOrAbs))
+      return normalizePath(path.resolve(specOrAbs))
+    try {
+      const resolved = await server.pluginContainer.resolveId(
+        specOrAbs,
+        importer,
+      )
+
+      let candidateId: string | undefined
+      if (isValidResolvedPath(resolved)) {
+        candidateId = resolved
+      } else if (resolved && typeof resolved === 'object' && 'id' in resolved) {
+        const { id } = resolved as { id?: unknown }
+        if (isValidResolvedPath(id)) candidateId = id
+      }
+
+      if (candidateId) {
+        const q = candidateId.indexOf('?')
+        return normalizePath(q >= 0 ? candidateId.slice(0, q) : candidateId)
+      }
+
+      return normalizePath(specOrAbs)
+    } catch {
+      return normalizePath(specOrAbs)
+    }
+  }
+
+  return { resolve, cleanup: () => server.close() }
+}
+
+const SUPPORTED_EXTENSIONS = ['.ts', '.js', '.tsx', '.jsx', '.vue'] as const
+
+/**
+ * Create a Node-based resolver using createRequire for basic module resolution.
+ * Used as a fallback when vite is not installed.
+ */
+function createNodeResolver(): {
+  resolve: ResolveFn
+  cleanup: () => Promise<void>
+} {
+  const resolve: ResolveFn = async (specOrAbs, importer) => {
+    if (path.isAbsolute(specOrAbs))
+      return normalizePath(path.resolve(specOrAbs))
+
+    // Skip bare specifiers (packages) — we only care about relative imports
+    if (!specOrAbs.startsWith('.')) return normalizePath(specOrAbs)
+
+    if (!importer) return normalizePath(specOrAbs)
+
+    const require = createRequire(importer)
+    try {
+      return normalizePath(require.resolve(specOrAbs))
+    } catch {
+      // Try with different extensions
+      for (const ext of SUPPORTED_EXTENSIONS) {
+        try {
+          return normalizePath(require.resolve(specOrAbs + ext))
+        } catch {
+          continue
+        }
+      }
+      return normalizePath(specOrAbs)
+    }
+  }
+
+  return { resolve, cleanup: async () => {} }
+}
+
+/**
+ * Try to create a Vite resolver, falling back to Node resolver if vite is not available.
+ */
+async function createResolver(
+  rootAbs: string,
+  exts: Set<string>,
+): Promise<{ resolve: ResolveFn; cleanup: () => Promise<void> }> {
+  try {
+    return await createViteResolver(rootAbs, exts)
+  } catch {
+    log.debug(
+      'Vite not available, using Node module resolution for discovery',
+    )
+    return createNodeResolver()
+  }
 }
 
 export async function autoDiscoverTargetsAndTests(
@@ -177,37 +269,8 @@ export async function autoDiscoverTargetsAndTests(
   if (!tests.length) return { targets: [], testMap: new Map() }
   const testSet = new Set(tests.map((t) => normalizePath(t)))
 
-  // 2) Vite server for alias/tsconfig path resolution (no execution)
-  const plugins = await loadPlugins(exts)
-  const quietLogger: Logger = {
-    hasWarned: false,
-    info() {},
-    warn() {},
-    warnOnce() {},
-    error(msg) {
-      // Vite logs a "WebSocket server error" when it cannot bind the HMR port;
-      // since we run in middleware mode and do not need HMR, silence that noise.
-      if (
-        typeof msg === 'string' &&
-        msg.includes('WebSocket server error') &&
-        msg.includes('listen EPERM')
-      )
-        return
-      log.error(typeof msg === 'string' ? msg : String(msg))
-    },
-    clearScreen() {},
-    hasErrorLogged() {
-      return false
-    },
-  }
-  const server: ViteDevServer = await createServer({
-    root: rootAbs,
-    logLevel: 'error',
-    customLogger: quietLogger,
-    clearScreen: false,
-    server: { middlewareMode: true, hmr: false },
-    plugins,
-  })
+  // 2) Create resolver (Vite if available, otherwise Node-based fallback)
+  const { resolve, cleanup } = await createResolver(rootAbs, exts)
 
   const targets: TargetMap = new Map()
   const testMap: TestMap = new Map()
@@ -262,7 +325,7 @@ export async function autoDiscoverTargetsAndTests(
       const cacheKey = `${absFile}\0${spec}`
       let resolved = resolveCache.get(cacheKey)
       if (!resolved) {
-        resolved = await resolveId(server, spec, absFile)
+        resolved = await resolve(spec, absFile)
         resolveCache.set(cacheKey, resolved)
       }
 
@@ -288,7 +351,7 @@ export async function autoDiscoverTargetsAndTests(
       const firstHop: string[] = []
       for (const spec of extractImportSpecs(code)) {
         if (!spec) continue
-        const resolved = await resolveId(server, spec, testAbs)
+        const resolved = await resolve(spec, testAbs)
         const next = path.isAbsolute(resolved)
           ? resolved
           : normalizePath(path.resolve(rootAbs, resolved))
@@ -304,6 +367,6 @@ export async function autoDiscoverTargetsAndTests(
 
     return { targets: Array.from(targets.values()), testMap }
   } finally {
-    await server.close()
+    await cleanup()
   }
 }
