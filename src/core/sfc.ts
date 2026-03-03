@@ -1,4 +1,3 @@
-import { parse } from '@vue/compiler-sfc'
 import MagicString from 'magic-string'
 import { getFilteredRegistry } from './variant-utils.js'
 import type { MutationVariant } from './types.js'
@@ -13,18 +12,19 @@ import type { MutationVariant } from './types.js'
  * @returns Array of unique mutations (with mutated full source), up to `max` if specified
  * @throws Error if max is provided and <= 0
  */
-export function mutateVueSfcScriptSetup(
+export async function mutateVueSfcScriptSetup(
   filename: string,
   code: string,
   include?: readonly string[],
   exclude?: readonly string[],
   max?: number,
-): readonly MutationVariant[] {
+): Promise<readonly MutationVariant[]> {
   // Input validation
   if (max !== undefined && max <= 0) {
     throw new Error(`max must be a positive number, got: ${max}`)
   }
 
+  const { parse } = await import('@vue/compiler-sfc')
   const sfc = parse(code, { filename })
   const scriptSetup = sfc.descriptor.scriptSetup
   if (!scriptSetup) return []

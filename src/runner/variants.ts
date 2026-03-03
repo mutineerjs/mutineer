@@ -50,7 +50,7 @@ export async function enumerateVariantsForTarget(
 
     const list: readonly MutationVariant[] =
       kind === 'vue:script-setup'
-        ? mutateVueSfcScriptSetup(abs, code, includeArr, excludeArr, max)
+        ? await mutateVueSfcScriptSetup(abs, code, includeArr, excludeArr, max)
         : mutateModuleSource(code, includeArr, excludeArr, max)
 
     return list.map((v, i) => ({
