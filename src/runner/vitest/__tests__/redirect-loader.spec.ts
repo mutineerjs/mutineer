@@ -3,6 +3,12 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import os from 'node:os'
 import { pathToFileURL } from 'node:url'
+
+vi.mock('node:module', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:module')>()
+  return { ...actual, register: vi.fn() }
+})
+
 import { resolve as poolResolve } from '../redirect-loader.js'
 
 describe('pool-redirect-loader resolve', () => {
