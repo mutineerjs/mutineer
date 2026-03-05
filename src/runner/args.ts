@@ -127,6 +127,14 @@ export function parseProgressMode(
 }
 
 /**
+ * Extract the config file path from CLI args (before full option parsing).
+ * Handles --config=path, -c=path, --config path, and -c path.
+ */
+export function extractConfigPath(args: readonly string[]): string | undefined {
+  return readStringFlag(args, '--config', '-c')
+}
+
+/**
  * Parse all CLI options.
  */
 export function parseCliOptions(

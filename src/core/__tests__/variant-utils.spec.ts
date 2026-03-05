@@ -8,6 +8,7 @@ function makeMutator(
 ): ASTMutator {
   return {
     name,
+    description: name,
     apply: () => mutations,
   } as ASTMutator
 }

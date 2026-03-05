@@ -6,7 +6,11 @@ import {
   getTargetFile,
   enumerateVariantsForTarget,
   filterTestsByCoverage,
+  enumerateAllVariants,
 } from '../variants.js'
+import { normalizePath } from '../../utils/normalizePath.js'
+import type { TestMap } from '../discover.js'
+import type { CoverageData } from '../../utils/coverage.js'
 
 describe('getTargetFile', () => {
   it('returns the string directly for string targets', () => {
@@ -208,5 +212,151 @@ describe('filterTestsByCoverage', () => {
       2,
     )
     expect(result).toEqual(['test-a.ts'])
+  })
+})
+
+describe('enumerateAllVariants', () => {
+  let tmpDir: string
+
+  beforeEach(async () => {
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'mutineer-enumall-'))
+  })
+
+  afterEach(async () => {
+    await fs.rm(tmpDir, { recursive: true, force: true })
+  })
+
+  it('enumerates variants for multiple targets and attaches tests', async () => {
+    const fileA = path.join(tmpDir, 'a.ts')
+    const fileB = path.join(tmpDir, 'b.ts')
+    await fs.writeFile(fileA, 'const x = a === b')
+    await fs.writeFile(fileB, 'const y = c + d')
+
+    const testMap: TestMap = new Map()
+    testMap.set(normalizePath(fileA), new Set(['/tests/a.test.ts']))
+    testMap.set(normalizePath(fileB), new Set(['/tests/b.test.ts']))
+
+    const result = await enumerateAllVariants({
+      cwd: tmpDir,
+      targets: ['a.ts', 'b.ts'],
+      testMap,
+      changedFiles: null,
+      coverageData: null,
+      config: {},
+    })
+
+    expect(result.length).toBeGreaterThan(0)
+    const filesInResult = new Set(result.map((v) => path.basename(v.file)))
+    expect(filesInResult.has('a.ts')).toBe(true)
+    expect(filesInResult.has('b.ts')).toBe(true)
+    // Each variant should have its tests attached
+    for (const v of result) {
+      expect(Array.isArray(v.tests)).toBe(true)
+    }
+  })
+
+  it('skips targets not in changedFiles set', async () => {
+    const fileA = path.join(tmpDir, 'a.ts')
+    const fileB = path.join(tmpDir, 'b.ts')
+    await fs.writeFile(fileA, 'const x = a === b')
+    await fs.writeFile(fileB, 'const y = c + d')
+
+    const testMap: TestMap = new Map()
+    testMap.set(normalizePath(fileA), new Set(['/tests/a.test.ts']))
+    testMap.set(normalizePath(fileB), new Set(['/tests/b.test.ts']))
+
+    // Only fileA is in changedFiles
+    const changedFiles = new Set([normalizePath(fileA)])
+
+    const result = await enumerateAllVariants({
+      cwd: tmpDir,
+      targets: ['a.ts', 'b.ts'],
+      testMap,
+      changedFiles,
+      coverageData: null,
+      config: {},
+    })
+
+    // All variants should be from a.ts only
+    for (const v of result) {
+      expect(path.basename(v.file)).toBe('a.ts')
+    }
+  })
+
+  it('filters variants by coverage data', async () => {
+    const fileA = path.join(tmpDir, 'cov.ts')
+    // Write code that produces mutations on different lines
+    await fs.writeFile(fileA, 'const x = a === b\nconst y = c === d')
+
+    const testMap: TestMap = new Map()
+    testMap.set(normalizePath(fileA), new Set(['/tests/cov.test.ts']))
+
+    // Only line 1 is covered
+    const coverageData: CoverageData = {
+      coveredLines: new Map([[normalizePath(fileA), new Set([1])]]),
+    }
+
+    const all = await enumerateAllVariants({
+      cwd: tmpDir,
+      targets: ['cov.ts'],
+      testMap,
+      changedFiles: null,
+      coverageData: null,
+      config: {},
+    })
+
+    const filtered = await enumerateAllVariants({
+      cwd: tmpDir,
+      targets: ['cov.ts'],
+      testMap,
+      changedFiles: null,
+      coverageData,
+      config: {},
+    })
+
+    expect(filtered.length).toBeLessThanOrEqual(all.length)
+    // All filtered variants should be on line 1
+    for (const v of filtered) {
+      expect(v.line).toBe(1)
+    }
+  })
+
+  it('returns empty array when no targets produce variants', async () => {
+    const fileA = path.join(tmpDir, 'clean.ts')
+    await fs.writeFile(fileA, 'const x = 1')
+
+    const testMap: TestMap = new Map()
+
+    const result = await enumerateAllVariants({
+      cwd: tmpDir,
+      targets: ['clean.ts'],
+      testMap,
+      changedFiles: null,
+      coverageData: null,
+      config: {},
+    })
+
+    expect(result).toEqual([])
+  })
+
+  it('attaches empty tests array when testMap has no entry for target', async () => {
+    const fileA = path.join(tmpDir, 'orphan.ts')
+    await fs.writeFile(fileA, 'const x = a === b')
+
+    const testMap: TestMap = new Map() // no entries
+
+    const result = await enumerateAllVariants({
+      cwd: tmpDir,
+      targets: ['orphan.ts'],
+      testMap,
+      changedFiles: null,
+      coverageData: null,
+      config: {},
+    })
+
+    expect(result.length).toBeGreaterThan(0)
+    for (const v of result) {
+      expect(v.tests).toEqual([])
+    }
   })
 })

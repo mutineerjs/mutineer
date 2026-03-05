@@ -7,11 +7,14 @@
 
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import type { MutateTarget } from '../types/config.js'
+import type { MutateTarget, MutineerConfig } from '../types/config.js'
 import type { MutationVariant } from '../core/types.js'
-import type { MutantPayload } from '../types/mutant.js'
+import type { MutantPayload, Variant } from '../types/mutant.js'
 import { mutateVueSfcScriptSetup } from '../core/sfc.js'
 import { mutateModuleSource } from '../core/module.js'
+import { normalizePath } from '../utils/normalizePath.js'
+import { isLineCovered, type CoverageData } from '../utils/coverage.js'
+import type { TestMap } from './discover.js'
 import { createLogger } from '../utils/logger.js'
 
 const log = createLogger('variants')
@@ -87,6 +90,69 @@ export function filterTestsByCoverage(
     if (!lines) return true
     return lines.has(line)
   })
+}
+
+export interface EnumerateAllParams {
+  cwd: string
+  targets: readonly MutateTarget[]
+  testMap: TestMap
+  changedFiles: Set<string> | null
+  coverageData: CoverageData | null
+  config: MutineerConfig
+}
+
+/**
+ * Enumerate variants for all targets, filtering by changed files and coverage.
+ * Links each variant to its relevant test files via the testMap.
+ */
+export async function enumerateAllVariants(
+  params: EnumerateAllParams,
+): Promise<Variant[]> {
+  const { cwd, targets, testMap, changedFiles, coverageData, config } = params
+
+  const enumerated = await Promise.all(
+    targets.map(async (target) => {
+      const file = getTargetFile(target)
+      const absFile = normalizePath(
+        path.isAbsolute(file) ? file : path.join(cwd, file),
+      )
+      if (changedFiles && !changedFiles.has(absFile)) return [] as Variant[]
+      log.debug('Target file: ' + absFile)
+
+      const files = await enumerateVariantsForTarget(
+        cwd,
+        target,
+        config.include,
+        config.exclude,
+        config.maxMutantsPerFile,
+      )
+      const testsAbs = testMap.get(normalizePath(absFile))
+      const tests = testsAbs ? Array.from(testsAbs) : []
+
+      log.debug(
+        `  found ${files.length} variants, linked to ${tests.length} tests`,
+      )
+
+      // Filter by coverage if enabled
+      let filtered = files
+      if (coverageData) {
+        filtered = files.filter((v) =>
+          isLineCovered(coverageData, absFile, v.line),
+        )
+        if (filtered.length !== files.length) {
+          log.debug(
+            `  filtered ${files.length} -> ${filtered.length} variants by coverage`,
+          )
+        }
+      }
+
+      return filtered.map((v) => ({ ...v, tests }))
+    }),
+  )
+
+  const variants: Variant[] = []
+  for (const list of enumerated) variants.push(...list)
+  return variants
 }
 
 export type { Variant } from '../types/mutant.js'

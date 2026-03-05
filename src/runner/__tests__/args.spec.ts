@@ -7,6 +7,7 @@ import {
   parseConcurrency,
   parseProgressMode,
   parseCliOptions,
+  extractConfigPath,
 } from '../args.js'
 
 describe('parseFlagNumber', () => {
@@ -290,5 +291,33 @@ describe('parseCliOptions', () => {
     expect(() =>
       parseCliOptions(['--min-kill-percent', '150'], emptyCfg),
     ).toThrow('expected value between 0 and 100')
+  })
+})
+
+describe('extractConfigPath', () => {
+  it('extracts --config with separate value', () => {
+    expect(extractConfigPath(['--config', 'my.config.ts'])).toBe(
+      'my.config.ts',
+    )
+  })
+
+  it('extracts --config with = syntax', () => {
+    expect(extractConfigPath(['--config=my.config.ts'])).toBe('my.config.ts')
+  })
+
+  it('extracts -c alias with separate value', () => {
+    expect(extractConfigPath(['-c', 'my.config.ts'])).toBe('my.config.ts')
+  })
+
+  it('extracts -c alias with = syntax', () => {
+    expect(extractConfigPath(['-c=my.config.ts'])).toBe('my.config.ts')
+  })
+
+  it('returns undefined when no config flag is present', () => {
+    expect(extractConfigPath(['--changed', '--runner', 'vitest'])).toBeUndefined()
+  })
+
+  it('returns undefined for empty args', () => {
+    expect(extractConfigPath([])).toBeUndefined()
   })
 })
