@@ -12,7 +12,6 @@ export {
 } from './adapter.js'
 export { VitestPool, runWithPool, type VitestPoolOptions } from './pool.js'
 export { poolMutineerPlugin } from './plugin.js'
-export { resolve as poolRedirectResolve } from './redirect-loader.js'
 export type {
   MutantPayload,
   MutantRunResult,
