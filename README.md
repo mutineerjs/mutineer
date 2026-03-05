@@ -64,12 +64,27 @@ npm i @mutineerjs/mutineer
 
 ### Quick Start
 
-```bash
-# Scaffold a config file
-mutineer init
+Try it immediately with `npx`:
 
-# Run mutation testing
-mutineer run
+```bash
+npx @mutineerjs/mutineer init
+npx @mutineerjs/mutineer run
+```
+
+Or add scripts to your `package.json` (recommended for team projects):
+
+```json
+{
+  "scripts": {
+    "mutineer": "mutineer run",
+    "mutineer:init": "mutineer init"
+  }
+}
+```
+
+```bash
+npm run mutineer:init
+npm run mutineer
 ```
 
 ### CLI Options (for `mutineer run`)
@@ -92,19 +107,19 @@ mutineer run
 Run mutations on only the files you changed:
 
 ```bash
-mutineer run --changed
+npm run mutineer -- --changed
 ```
 
 Run with Jest and a minimum kill rate:
 
 ```bash
-mutineer run --runner jest --min-kill-percent 80
+npm run mutineer -- --runner jest --min-kill-percent 80
 ```
 
 Focus on covered code with 2 parallel workers:
 
 ```bash
-mutineer run --only-covered-lines --concurrency 2
+npm run mutineer -- --only-covered-lines --concurrency 2
 ```
 
 ## Configuration
