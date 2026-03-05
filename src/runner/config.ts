@@ -23,7 +23,7 @@ const log = createLogger('config')
 async function loadModule(filePath: string): Promise<unknown> {
   const moduleUrl = pathToFileURL(filePath).href
   const mod = await import(moduleUrl)
-  return mod.default || mod
+  return mod.default ?? mod
 }
 
 /**
@@ -32,7 +32,7 @@ async function loadModule(filePath: string): Promise<unknown> {
  * the structure is an object and not some other unexpected type.
  */
 function validateConfig(config: unknown): config is MutineerConfig {
-  if (typeof config !== 'object' && config === null) {
+  if (typeof config !== 'object' || config === null) {
     return false
   }
   // Config is valid even if empty; defaults are applied elsewhere.
