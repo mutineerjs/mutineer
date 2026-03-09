@@ -13,7 +13,8 @@
     "jsx": "react-jsx",
     "noUnusedParameters": true,
     "noUnusedLocals": true,
-    "noImplicitReturns": true
+    "noImplicitReturns": true,
+    "noImplicitAny": true
   },
   "include": ["src/**/*"],
   "exclude": []
