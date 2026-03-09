@@ -26,25 +26,31 @@ Mutations are applied using Babel AST analysis, so operators inside strings and 
 
 ## Supported Mutations (WIP)
 
-| Category   | Mutator         | Transformation     |
-| ---------- | --------------- | ------------------ |
-| Equality   | `flipStrictEQ`  | `===` &rarr; `!==` |
-|            | `flipStrictNEQ` | `!==` &rarr; `===` |
-|            | `flipEQ`        | `==` &rarr; `!=`   |
-|            | `flipNEQ`       | `!=` &rarr; `==`   |
-| Boundary   | `relaxLE`       | `<=` &rarr; `<`    |
-|            | `relaxGE`       | `>=` &rarr; `>`    |
-|            | `tightenLT`     | `<` &rarr; `<=`    |
-|            | `tightenGT`     | `>` &rarr; `>=`    |
-| Logical    | `andToOr`       | `&&` &rarr; `\|\|` |
-|            | `orToAnd`       | `\|\|` &rarr; `&&` |
-|            | `nullishToOr`   | `??` &rarr; `\|\|` |
-| Arithmetic | `addToSub`      | `+` &rarr; `-`     |
-|            | `subToAdd`      | `-` &rarr; `+`     |
-|            | `mulToDiv`      | `*` &rarr; `/`     |
-|            | `divToMul`      | `/` &rarr; `*`     |
-|            | `modToMul`      | `%` &rarr; `*`     |
-|            | `powerToMul`    | `**` &rarr; `*`    |
+| Category     | Mutator             | Transformation                       |
+| ------------ | ------------------- | ------------------------------------ |
+| Equality     | `flipStrictEQ`      | `===` &rarr; `!==`                   |
+|              | `flipStrictNEQ`     | `!==` &rarr; `===`                   |
+|              | `flipEQ`            | `==` &rarr; `!=`                     |
+|              | `flipNEQ`           | `!=` &rarr; `==`                     |
+| Boundary     | `relaxLE`           | `<=` &rarr; `<`                      |
+|              | `relaxGE`           | `>=` &rarr; `>`                      |
+|              | `tightenLT`         | `<` &rarr; `<=`                      |
+|              | `tightenGT`         | `>` &rarr; `>=`                      |
+| Logical      | `andToOr`           | `&&` &rarr; `\|\|`                   |
+|              | `orToAnd`           | `\|\|` &rarr; `&&`                   |
+|              | `nullishToOr`       | `??` &rarr; `\|\|`                   |
+| Arithmetic   | `addToSub`          | `+` &rarr; `-`                       |
+|              | `subToAdd`          | `-` &rarr; `+`                       |
+|              | `mulToDiv`          | `*` &rarr; `/`                       |
+|              | `divToMul`          | `/` &rarr; `*`                       |
+|              | `modToMul`          | `%` &rarr; `*`                       |
+|              | `powerToMul`        | `**` &rarr; `*`                      |
+| Return value | `returnToNull`      | `return x` &rarr; `return null`      |
+|              | `returnToUndefined` | `return x` &rarr; `return undefined` |
+|              | `returnFlipBool`    | `return true` &harr; `return false`  |
+|              | `returnZero`        | `return n` &rarr; `return 0`         |
+|              | `returnEmptyStr`    | `return s` &rarr; `return ''`        |
+|              | `returnEmptyArr`    | `return [...]` &rarr; `return []`    |
 
 ## Installation
 
