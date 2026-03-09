@@ -1,8 +1,31 @@
 {
   "name": "@mutineerjs/mutineer",
   "version": "v0.2.4",
+  "description": "A fast, targeted mutation testing framework for JavaScript and TypeScript",
   "type": "module",
   "private": false,
+  "license": "MIT",
+  "author": "Billy Jones",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mutineerjs/mutineer.git"
+  },
+  "bugs": {
+    "url": "https://github.com/mutineerjs/mutineer/issues"
+  },
+  "homepage": "https://github.com/mutineerjs/mutineer#readme",
+  "keywords": [
+    "mutation-testing",
+    "testing",
+    "vitest",
+    "jest",
+    "typescript",
+    "javascript",
+    "code-quality"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
   "bin": {
     "mutineer": "./dist/bin/mutineer.js"
   },
@@ -24,7 +47,18 @@
     "test:watch": "vitest",
     "test:coverage": "vitest --run --coverage",
     "lint": "eslint --config ./eslint.config.cjs --ext .ts,.js src/",
-    "mutate": "MUTINEER_DEBUG=0 tsx src/bin/mutineer.ts --config mutineer.config.ts"
+    "mutate": "MUTINEER_DEBUG=0 tsx src/bin/mutineer.ts --config mutineer.config.ts",
+    "prepare": "husky",
+    "prepublishOnly": "npm run build"
+  },
+  "lint-staged": {
+    "src/**/*.ts": [
+      "eslint --config ./eslint.config.cjs --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,yml,yaml}": [
+      "prettier --write"
+    ]
   },
   "dependencies": {
     "@babel/parser": "^7.28.4",
@@ -47,20 +81,35 @@
     "vitest": "^4.0.15"
   },
   "peerDependenciesMeta": {
-    "@vitejs/plugin-vue": { "optional": true },
-    "@vitest/coverage-v8": { "optional": true },
-    "@vue/compiler-sfc": { "optional": true },
-    "vitest": { "optional": true },
-    "vite": { "optional": true }
+    "@vitejs/plugin-vue": {
+      "optional": true
+    },
+    "@vitest/coverage-v8": {
+      "optional": true
+    },
+    "@vue/compiler-sfc": {
+      "optional": true
+    },
+    "vitest": {
+      "optional": true
+    },
+    "vite": {
+      "optional": true
+    }
   },
   "devDependencies": {
+    "@commitlint/cli": "^19.8.1",
+    "@commitlint/config-conventional": "^19.8.1",
     "@types/babel__traverse": "^7.28.0",
     "@types/node": "^24.7.0",
     "@types/react": "^19.2.14",
     "@typescript-eslint/eslint-plugin": "^8.47.0",
     "@typescript-eslint/parser": "^8.47.0",
     "eslint": "^9.39.1",
+    "husky": "^9.1.7",
     "jsdom": "^27.0.0",
+    "lint-staged": "^16.1.0",
+    "prettier": "^3.8.1",
     "typescript": "^5.5.4",
     "vite": "^6.3.6",
     "vitest": "^4.0.15",
