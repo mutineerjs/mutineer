@@ -46,7 +46,7 @@ export interface TestRunnerAdapter {
   readonly name: string
 
   /**
-   * Initialize the adapter (start worker pools, etc.).
+   * Initialise the adapter (start worker pools, etc.).
    * Must be called before running tests.
    */
   init(concurrencyOverride?: number): Promise<void>

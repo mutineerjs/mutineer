@@ -52,7 +52,7 @@ describe('Vitest adapter', () => {
     vi.useRealTimers()
   })
 
-  it('initializes pool with override concurrency', async () => {
+  it('initialises pool with override concurrency', async () => {
     const adapter = makeAdapter()
     await adapter.init(5)
     expect(poolInstance?.init).toHaveBeenCalledTimes(1)

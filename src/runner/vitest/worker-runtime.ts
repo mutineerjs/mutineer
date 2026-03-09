@@ -46,9 +46,9 @@ export class VitestWorkerRuntime {
       )
 
       await this.vitest.init()
-      log.debug(`Vitest initialized for worker ${this.options.workerId}`)
+      log.debug(`Vitest initialised for worker ${this.options.workerId}`)
     } catch (err) {
-      log.error(`Failed to initialize Vitest: ${err}`)
+      log.error(`Failed to initialise Vitest: ${err}`)
       throw err
     }
   }
@@ -61,7 +61,7 @@ export class VitestWorkerRuntime {
 
   async run(mutant: MutantPayload, tests: string[]): Promise<MutantRunSummary> {
     if (!this.vitest) {
-      throw new Error('Vitest runtime not initialized')
+      throw new Error('Vitest runtime not initialised')
     }
 
     const start = Date.now()

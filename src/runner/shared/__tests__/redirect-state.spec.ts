@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import {
-  initializeRedirectState,
+  initialiseRedirectState,
   setRedirect,
   getRedirect,
   clearRedirect,
@@ -8,10 +8,10 @@ import {
 
 describe('redirect-state', () => {
   beforeEach(() => {
-    initializeRedirectState()
+    initialiseRedirectState()
   })
 
-  describe('initializeRedirectState', () => {
+  describe('initialiseRedirectState', () => {
     it('sets global redirect to null/null', () => {
       expect(globalThis.__mutineer_redirect__).toEqual({
         from: null,

@@ -14,9 +14,7 @@ function makeAdapter(
     name: 'vitest',
     init: vi.fn().mockResolvedValue(undefined),
     runBaseline: vi.fn().mockResolvedValue(true),
-    runMutant: vi
-      .fn()
-      .mockResolvedValue({ status: 'killed', durationMs: 10 }),
+    runMutant: vi.fn().mockResolvedValue({ status: 'killed', durationMs: 10 }),
     shutdown: vi.fn().mockResolvedValue(undefined),
     hasCoverageProvider: vi.fn().mockReturnValue(false),
     detectCoverageConfig: vi
@@ -56,7 +54,7 @@ describe('executePool', () => {
     await fs.rm(tmpDir, { recursive: true, force: true })
   })
 
-  it('initializes adapter with correct worker count', async () => {
+  it('initialises adapter with correct worker count', async () => {
     const adapter = makeAdapter()
     const cache: Record<string, MutantCacheEntry> = {}
     const tasks = [makeTask()]
