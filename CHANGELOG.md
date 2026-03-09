@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.2](https://github.com/mutineerjs/mutineer/compare/v0.3.1...v0.3.2) (2026-03-09)
+
+
+### Fixed
+
+* added auth token ([#20](https://github.com/mutineerjs/mutineer/issues/20)) ([529e843](https://github.com/mutineerjs/mutineer/commit/529e843040dca44c980fa1d045349ffc06e0a4a7))
+* scoped permissions to jobs ([#21](https://github.com/mutineerjs/mutineer/issues/21)) ([ff58d91](https://github.com/mutineerjs/mutineer/commit/ff58d91727e77c781ea72b0926185ef5898405e6))
+
 ## [0.3.1](https://github.com/mutineerjs/mutineer/compare/v0.3.0...v0.3.1) (2026-03-09)
 
 
