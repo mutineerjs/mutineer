@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import os from 'node:os'
@@ -97,11 +97,9 @@ describe('enumerateVariantsForTarget', () => {
   it('filters by include', async () => {
     const srcFile = path.join(tmpDir, 'inc.ts')
     await fs.writeFile(srcFile, 'const x = a === b && c || d')
-    const result = await enumerateVariantsForTarget(
-      tmpDir,
-      'inc.ts',
-      ['andToOr'],
-    )
+    const result = await enumerateVariantsForTarget(tmpDir, 'inc.ts', [
+      'andToOr',
+    ])
     expect(result.every((v) => v.name === 'andToOr')).toBe(true)
   })
 
