@@ -39,11 +39,11 @@ describe('JestPool', () => {
   it('throws if run is called before init', async () => {
     const pool = new JestPool({ cwd: '/tmp', concurrency: 1 })
     await expect(pool.run(dummyMutant, ['test.ts'])).rejects.toThrow(
-      'Pool not initialized',
+      'Pool not initialised',
     )
   })
 
-  it('initializes with the specified concurrency', async () => {
+  it('initialises with the specified concurrency', async () => {
     const workers: any[] = []
     const pool = new JestPool({
       cwd: '/tmp',
@@ -61,7 +61,7 @@ describe('JestPool', () => {
     expect(workers[1].start).toHaveBeenCalled()
   })
 
-  it('does not re-initialize if already initialized', async () => {
+  it('does not re-initialise if already initialised', async () => {
     const workers: any[] = []
     const pool = new JestPool({
       cwd: '/tmp',
@@ -125,9 +125,9 @@ describe('JestPool', () => {
 
     await pool.init()
     await pool.shutdown()
-    // After shutdown, initialized is set to false, so "not initialized" check fires first
+    // After shutdown, initialised is set to false, so "not initialised" check fires first
     await expect(pool.run(dummyMutant, ['test.ts'])).rejects.toThrow(
-      'Pool not initialized',
+      'Pool not initialised',
     )
   })
 

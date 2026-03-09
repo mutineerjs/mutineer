@@ -28,7 +28,7 @@ register(import.meta.url, {
 
 let DEBUG = process.env.MUTINEER_DEBUG === '1'
 
-export function initialize(data: { debug?: boolean } | undefined) {
+export function initialise(data: { debug?: boolean } | undefined) {
   if (data?.debug !== undefined) {
     DEBUG = data.debug
   }

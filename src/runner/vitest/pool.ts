@@ -304,7 +304,7 @@ export class VitestPool {
     vitestConfig?: string
     createWorker?: VitestPoolOptions['createWorker']
   }
-  private initialized = false
+  private initialised = false
   private shuttingDown = false
 
   constructor(options: VitestPoolOptions) {
@@ -318,7 +318,7 @@ export class VitestPool {
   }
 
   async init(): Promise<void> {
-    if (this.initialized) return
+    if (this.initialised) return
 
     poolLog.debug(`Initializing pool with ${this.options.concurrency} workers`)
 
@@ -348,8 +348,8 @@ export class VitestPool {
     }
 
     await Promise.all(startPromises)
-    this.initialized = true
-    poolLog.debug('Pool initialized')
+    this.initialised = true
+    poolLog.debug('Pool initialised')
   }
 
   private handleWorkerExit(worker: VitestWorker): void {
@@ -418,8 +418,8 @@ export class VitestPool {
   }
 
   async run(mutant: MutantPayload, tests: string[]): Promise<MutantRunSummary> {
-    if (!this.initialized) {
-      throw new Error('Pool not initialized. Call init() first.')
+    if (!this.initialised) {
+      throw new Error('Pool not initialised. Call init() first.')
     }
     if (this.shuttingDown) {
       throw new Error('Pool is shutting down')
@@ -444,7 +444,7 @@ export class VitestPool {
     await Promise.all(this.workers.map((w) => w.shutdown()))
     this.workers = []
     this.availableWorkers = []
-    this.initialized = false
+    this.initialised = false
 
     poolLog.debug('Pool shut down')
   }

@@ -56,4 +56,123 @@ describe('Progress', () => {
 
     expect(logSpy).toHaveBeenCalled()
   })
+
+  it('ignores update and finish calls when not started', () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const progress = new Progress(3, { mode: 'list' })
+
+    progress.update('killed') // no-op: not started
+    progress.finish() // no-op: not started
+
+    expect(logSpy).not.toHaveBeenCalled()
+  })
+
+  it('ignores duplicate start and calls after finish', () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const progress = new Progress(2, { mode: 'list' })
+
+    progress.start()
+    progress.start() // no-op: already started
+    progress.finish()
+    progress.update('killed') // no-op: already finished
+    progress.finish() // no-op: already finished
+
+    // Only one start message and one finish message
+    const logs = logSpy.mock.calls.map((args) => args.join(' '))
+    const startLogs = logs.filter((l) => l.includes('running 2 mutants'))
+    expect(startLogs).toHaveLength(1)
+  })
+
+  it('uses stdout stream when configured', () => {
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+    const progress = new Progress(1, { mode: 'list', stream: 'stdout' })
+
+    progress.start()
+    progress.update('killed')
+    progress.finish()
+
+    // Should still log to console (non-TTY path)
+    expect(console.log).toHaveBeenCalled()
+  })
+
+  it('writes progress bar in TTY mode', () => {
+    const writeSpy = vi.fn()
+    const fakeStream = {
+      isTTY: true,
+      write: writeSpy,
+      columns: 120,
+    }
+
+    // Patch process.stderr to simulate TTY
+    const origStderr = process.stderr
+    Object.defineProperty(process, 'stderr', {
+      value: fakeStream,
+      writable: true,
+      configurable: true,
+    })
+
+    try {
+      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+      const progress = new Progress(3, { mode: 'bar' })
+
+      progress.start()
+      expect(writeSpy).toHaveBeenCalled() // hide cursor + bar
+      const hideCursor = writeSpy.mock.calls.find((c: string[]) =>
+        c[0].includes('\x1b[?25l'),
+      )
+      expect(hideCursor).toBeDefined()
+
+      progress.update('killed')
+      progress.update('escaped')
+
+      progress.finish()
+      // Show cursor on finish
+      const showCursor = writeSpy.mock.calls.find((c: string[]) =>
+        c[0].includes('\x1b[?25h'),
+      )
+      expect(showCursor).toBeDefined()
+
+      // Final summary still logged via console.log
+      expect(logSpy).toHaveBeenCalled()
+    } finally {
+      Object.defineProperty(process, 'stderr', {
+        value: origStderr,
+        writable: true,
+        configurable: true,
+      })
+    }
+  })
+
+  it('handles zero total in bar mode', () => {
+    const writeSpy = vi.fn()
+    const fakeStream = {
+      isTTY: true,
+      write: writeSpy,
+      columns: 80,
+    }
+
+    const origStderr = process.stderr
+    Object.defineProperty(process, 'stderr', {
+      value: fakeStream,
+      writable: true,
+      configurable: true,
+    })
+
+    try {
+      vi.spyOn(console, 'log').mockImplementation(() => {})
+      const progress = new Progress(0, { mode: 'bar' })
+
+      progress.start()
+      progress.finish()
+
+      // Should not throw; ratio should be 1 (100%)
+      expect(writeSpy).toHaveBeenCalled()
+    } finally {
+      Object.defineProperty(process, 'stderr', {
+        value: origStderr,
+        writable: true,
+        configurable: true,
+      })
+    }
+  })
 })

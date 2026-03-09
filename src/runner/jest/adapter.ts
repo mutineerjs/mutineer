@@ -165,7 +165,7 @@ export class JestAdapter implements TestRunnerAdapter {
     tests: readonly string[],
   ): Promise<MutantRunResult> {
     if (!this.pool) {
-      throw new Error('JestAdapter not initialized. Call init() first.')
+      throw new Error('JestAdapter not initialised. Call init() first.')
     }
 
     try {

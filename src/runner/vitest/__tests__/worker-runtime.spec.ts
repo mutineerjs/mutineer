@@ -66,6 +66,117 @@ describe('VitestWorkerRuntime', () => {
     await runtime.shutdown()
   })
 
+  it('throws when run is called before init', async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'mutineer-worker-'))
+    tmpFiles.push(tmp)
+    const runtime = createVitestWorkerRuntime({
+      workerId: 'w-noinit',
+      cwd: tmp,
+    })
+
+    await expect(
+      runtime.run(
+        {
+          id: 'mut#err',
+          name: 'm',
+          file: path.join(tmp, 'src.ts'),
+          code: 'export const x=1',
+          line: 1,
+          col: 1,
+        },
+        [path.join(tmp, 'test.ts')],
+      ),
+    ).rejects.toThrow('Vitest runtime not initialised')
+  })
+
+  it('shutdown is a no-op when not initialised', async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'mutineer-worker-'))
+    tmpFiles.push(tmp)
+    const runtime = createVitestWorkerRuntime({
+      workerId: 'w-noinit2',
+      cwd: tmp,
+    })
+
+    // Should not throw
+    await runtime.shutdown()
+    expect(closeFn).not.toHaveBeenCalled()
+  })
+
+  it('passes vitestConfigPath option to createVitest', async () => {
+    const { createVitest } = await import('vitest/node')
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'mutineer-worker-'))
+    tmpFiles.push(tmp)
+    const runtime = createVitestWorkerRuntime({
+      workerId: 'w-config',
+      cwd: tmp,
+      vitestConfigPath: '/custom/vitest.config.ts',
+    })
+    await runtime.init()
+
+    expect(createVitest).toHaveBeenCalledWith(
+      'test',
+      expect.objectContaining({ config: '/custom/vitest.config.ts' }),
+      expect.any(Object),
+    )
+    await runtime.shutdown()
+  })
+
+  it('handles non-Error thrown during run', async () => {
+    runSpecsFn.mockRejectedValue('string error')
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'mutineer-worker-'))
+    tmpFiles.push(tmp)
+    const runtime = createVitestWorkerRuntime({
+      workerId: 'w-strerr',
+      cwd: tmp,
+    })
+    await runtime.init()
+
+    const result = await runtime.run(
+      {
+        id: 'mut#3',
+        name: 'm',
+        file: path.join(tmp, 'src.ts'),
+        code: 'export const x=1',
+        line: 1,
+        col: 1,
+      },
+      [path.join(tmp, 'test.ts')],
+    )
+
+    expect(result.killed).toBe(true)
+    expect(result.error).toBe('string error')
+    await runtime.shutdown()
+  })
+
+  it('falls back to all testModules when no relevant modules match', async () => {
+    runSpecsFn.mockResolvedValue({
+      testModules: [{ moduleId: 'unknown-module', ok: () => true }],
+    })
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'mutineer-worker-'))
+    tmpFiles.push(tmp)
+    const runtime = createVitestWorkerRuntime({
+      workerId: 'w-fallback',
+      cwd: tmp,
+    })
+    await runtime.init()
+
+    const result = await runtime.run(
+      {
+        id: 'mut#4',
+        name: 'm',
+        file: path.join(tmp, 'src.ts'),
+        code: 'export const x=1',
+        line: 1,
+        col: 1,
+      },
+      [path.join(tmp, 'test.ts')],
+    )
+
+    // Falls back to all testModules; 'unknown-module' reports ok() = true
+    expect(result.killed).toBe(false)
+    await runtime.shutdown()
+  })
+
   it('returns escaped when no specs produced', async () => {
     getProjectByNameFn.mockReturnValue({ createSpecification: () => null })
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'mutineer-worker-'))

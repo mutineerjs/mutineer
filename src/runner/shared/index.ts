@@ -10,6 +10,6 @@ export {
   setRedirect,
   getRedirect,
   clearRedirect,
-  initializeRedirectState,
+  initialiseRedirectState,
 } from './redirect-state.js'
 export type { RedirectConfig } from './redirect-state.js'
