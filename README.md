@@ -56,11 +56,11 @@ npm i @mutineerjs/mutineer
 
 ### Commands
 
-| Command          | Description                                          |
-| ---------------- | ---------------------------------------------------- |
-| `mutineer init`  | Create a `mutineer.config.ts` with minimal defaults  |
-| `mutineer run`   | Run mutation testing                                 |
-| `mutineer clean` | Remove leftover `__mutineer__` temp directories      |
+| Command          | Description                                         |
+| ---------------- | --------------------------------------------------- |
+| `mutineer init`  | Create a `mutineer.config.ts` with minimal defaults |
+| `mutineer run`   | Run mutation testing                                |
+| `mutineer clean` | Remove leftover `__mutineer__` temp directories     |
 
 ### Quick Start
 
@@ -93,7 +93,7 @@ npm run mutineer
 | ------------------------ | ------------------------------------------ | ------------- |
 | `--runner <type>`        | Test runner: `vitest` or `jest`            | `vitest`      |
 | `--config`, `-c`         | Path to config file                        | auto-detected |
-| `--concurrency <n>`      | Parallel workers (1-4)                     | CPUs - 1      |
+| `--concurrency <n>`      | Parallel workers (min 1)                   | CPUs - 1      |
 | `--changed`              | Only mutate files changed vs base branch   | --            |
 | `--changed-with-deps`    | Include dependents of changed files        | --            |
 | `--only-covered-lines`   | Skip mutations on uncovered lines          | --            |
@@ -140,23 +140,23 @@ export default defineMutineerConfig({
 
 ### Config Options
 
-| Option              | Type                               | Description                                      |
-| ------------------- | ---------------------------------- | ------------------------------------------------ |
-| `source`            | `string \| string[]`               | Glob patterns for source files to mutate         |
-| `targets`           | `MutateTarget[]`                   | Explicit list of files to mutate                 |
-| `runner`            | `'vitest' \| 'jest'`               | Test runner to use                               |
-| `vitestConfig`      | `string`                           | Path to vitest config                            |
-| `jestConfig`        | `string`                           | Path to jest config                              |
-| `include`           | `string[]`                         | Only run these mutators                          |
-| `exclude`           | `string[]`                         | Skip these mutators                              |
-| `excludePaths`      | `string[]`                         | Glob patterns for paths to skip                  |
-| `maxMutantsPerFile` | `number`                           | Cap mutations per file                           |
-| `minKillPercent`    | `number`                           | Fail if kill rate is below this                  |
-| `onlyCoveredLines`  | `boolean`                          | Only mutate lines covered by tests               |
-| `perTestCoverage`   | `boolean`                          | Use per-test coverage to select tests            |
-| `baseRef`           | `string`                           | Git ref for `--changed` (default: `origin/main`) |
-| `testPatterns`      | `string[]`                         | Globs for test file discovery                    |
-| `extensions`        | `string[]`                         | File extensions to consider                      |
+| Option              | Type                 | Description                                      |
+| ------------------- | -------------------- | ------------------------------------------------ |
+| `source`            | `string \| string[]` | Glob patterns for source files to mutate         |
+| `targets`           | `MutateTarget[]`     | Explicit list of files to mutate                 |
+| `runner`            | `'vitest' \| 'jest'` | Test runner to use                               |
+| `vitestConfig`      | `string`             | Path to vitest config                            |
+| `jestConfig`        | `string`             | Path to jest config                              |
+| `include`           | `string[]`           | Only run these mutators                          |
+| `exclude`           | `string[]`           | Skip these mutators                              |
+| `excludePaths`      | `string[]`           | Glob patterns for paths to skip                  |
+| `maxMutantsPerFile` | `number`             | Cap mutations per file                           |
+| `minKillPercent`    | `number`             | Fail if kill rate is below this                  |
+| `onlyCoveredLines`  | `boolean`            | Only mutate lines covered by tests               |
+| `perTestCoverage`   | `boolean`            | Use per-test coverage to select tests            |
+| `baseRef`           | `string`             | Git ref for `--changed` (default: `origin/main`) |
+| `testPatterns`      | `string[]`           | Globs for test file discovery                    |
+| `extensions`        | `string[]`           | File extensions to consider                      |
 
 ## File Support
 
