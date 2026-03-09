@@ -115,7 +115,9 @@ async function createViteResolver(
   let plugins: PluginOption[] = []
   if (exts.has('.vue')) {
     try {
-      const mod = await import('@vitejs/plugin-vue')
+      const mod = await import(
+        /* @vite-ignore */ '@vitejs/plugin-vue' as string
+      )
       const vue = (mod as { default?: unknown }).default ?? mod
       plugins = typeof vue === 'function' ? [(vue as () => PluginOption)()] : []
     } catch (err) {
@@ -234,9 +236,7 @@ async function createResolver(
   try {
     return await createViteResolver(rootAbs, exts)
   } catch {
-    log.debug(
-      'Vite not available, using Node module resolution for discovery',
-    )
+    log.debug('Vite not available, using Node module resolution for discovery')
     return createNodeResolver()
   }
 }
