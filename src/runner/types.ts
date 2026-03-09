@@ -7,11 +7,7 @@
  */
 
 import type { MutineerConfig } from '../types/config.js'
-import type {
-  MutantPayload,
-  MutantRunResult,
-  MutantRunStatus,
-} from '../types/mutant.js'
+import type { MutantPayload, MutantRunResult } from '../types/mutant.js'
 
 /**
  * Options for initializing a test runner adapter.
