@@ -55,11 +55,30 @@ npm test
 | `npm run test:coverage` | Run tests with coverage |
 | `npm run lint`          | Lint source files       |
 
+## Git Hooks
+
+This project uses [Husky](https://typicode.github.io/husky/) to run Git hooks automatically:
+
+- **Pre-commit** — Runs [lint-staged](https://github.com/lint-staged/lint-staged) to auto-fix and format staged files with ESLint and Prettier.
+- **Commit message** — Validates your commit message against the [Conventional Commits](https://www.conventionalcommits.org/) spec using [commitlint](https://commitlint.js.org/). Commits that don't follow the format will be rejected.
+
+Hooks are installed automatically when you run `npm install`.
+
 ## Code Style
 
 - Code is formatted with Prettier and linted with ESLint.
 - Pre-commit hooks enforce linting and formatting automatically.
 - No semicolons, single quotes, trailing commas.
+
+## Releases
+
+Releases are fully automated via [release-please](https://github.com/googleapis/release-please):
+
+1. When `feat:` or `fix:` commits are pushed to `main`, release-please opens (or updates) a release PR that bumps the version and updates the changelog.
+2. Merging the release PR creates a GitHub Release with a git tag.
+3. The release triggers an automated publish to npm via trusted publishing (OIDC).
+
+You do not need to manually update `package.json` version or `CHANGELOG.md` — release-please handles both.
 
 ## Reporting Issues
 
