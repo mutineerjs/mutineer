@@ -33,8 +33,6 @@ interface ReadyResponse {
   workerId: string
 }
 
-type Response = ResultResponse | ShutdownResponse | ReadyResponse
-
 globalThis.__mutineer_redirect__ = { from: null, to: null }
 
 async function main(): Promise<void> {

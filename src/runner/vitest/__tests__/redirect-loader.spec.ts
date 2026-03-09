@@ -232,7 +232,7 @@ describe('pool-redirect-loader resolve', () => {
     })
 
     // parentURL is not a valid file URL, so tryResolveTsExtension should return null
-    const result = await poolResolve(
+    await poolResolve(
       './foo.js',
       { parentURL: 'not-a-valid-url' },
       nextResolve as any,

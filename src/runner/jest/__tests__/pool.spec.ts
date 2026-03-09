@@ -1,11 +1,10 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { JestPool, runWithJestPool } from '../pool.js'
 import type { MutantPayload } from '../../../types/mutant.js'
 
 // We'll use the createWorker option to inject mock workers instead of forking processes
 
 function makeMockWorker(id: string) {
-  let readyResolve: (() => void) | null = null
   const worker: any = {
     id,
     _ready: true,

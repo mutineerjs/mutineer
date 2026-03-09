@@ -54,7 +54,7 @@ describe('VitestPool', () => {
       cwd: process.cwd(),
       concurrency: 1,
       timeoutMs: 5000,
-      createWorker: (id, opts) => {
+      createWorker: (id) => {
         const worker = new EventEmitter() as any
         worker.id = id
         worker.start = vi.fn().mockResolvedValue(undefined)

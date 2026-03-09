@@ -1,11 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { JestWorkerRuntime, createJestWorkerRuntime } from '../worker-runtime.js'
+import {
+  JestWorkerRuntime,
+  createJestWorkerRuntime,
+} from '../worker-runtime.js'
 
 // Mock the shared utilities
 vi.mock('../../shared/index.js', () => ({
-  getMutantFilePath: vi.fn(
-    (file: string, id: string) => `/tmp/__mutineer__/mutant_${id}.ts`,
-  ),
+  getMutantFilePath: vi.fn((id: string) => `/tmp/__mutineer__/mutant_${id}.ts`),
   setRedirect: vi.fn(),
   clearRedirect: vi.fn(),
 }))
@@ -129,9 +130,8 @@ describe('JestWorkerRuntime', () => {
       globalConfig: {},
     })
 
-    const { getMutantFilePath, setRedirect, clearRedirect } = await import(
-      '../../shared/index.js'
-    )
+    const { getMutantFilePath, setRedirect, clearRedirect } =
+      await import('../../shared/index.js')
 
     await runtime.run(
       {
