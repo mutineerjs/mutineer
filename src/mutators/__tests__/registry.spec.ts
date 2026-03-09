@@ -19,6 +19,12 @@ const ALL_NAMES = [
   'divToMul',
   'modToMul',
   'powerToMul',
+  'returnToNull',
+  'returnToUndefined',
+  'returnFlipBool',
+  'returnZero',
+  'returnEmptyStr',
+  'returnEmptyArr',
 ] as const
 
 describe('mutator registry', () => {

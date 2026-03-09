@@ -22,7 +22,7 @@ export const traverse: typeof import('@babel/traverse').default =
  * Parser configuration for Babel.
  * Enables support for TypeScript, JSX, decorators, and modern JavaScript features.
  */
-const parserOptsTs: ParserOptions = {
+export const parserOptsTs: ParserOptions = {
   sourceType: 'unambiguous',
   plugins: [
     'typescript',
@@ -38,7 +38,7 @@ const parserOptsTs: ParserOptions = {
   tokens: true,
 }
 
-const parserOptsFlow: ParserOptions = {
+export const parserOptsFlow: ParserOptions = {
   sourceType: 'unambiguous',
   plugins: [
     'flow',
@@ -88,6 +88,53 @@ export function getVisualColumn(src: string, charOffset: number): number {
 }
 
 /**
+ * Build a set of line numbers that should be ignored for mutation based on
+ * disable comments (`mutineer-disable`, `mutineer-disable-line`,
+ * `mutineer-disable-next-line`).
+ *
+ * @param comments - The comment nodes from the parsed AST
+ * @returns Set of 1-based line numbers that should not be mutated
+ */
+export function buildIgnoreLines(comments: readonly t.Comment[]): Set<number> {
+  const ignoreLines = new Set<number>()
+
+  for (const comment of comments) {
+    const text = comment.value.trim()
+    if (!text) continue
+    if (!comment.loc) continue
+
+    const startLine = comment.loc.start.line
+    const endLine = comment.loc.end.line
+
+    if (text.includes('mutineer-disable-next-line')) {
+      ignoreLines.add(endLine + 1)
+    }
+    if (
+      text.includes('mutineer-disable-line') ||
+      text.includes('mutineer-disable')
+    ) {
+      for (let line = startLine; line <= endLine; line++) {
+        ignoreLines.add(line)
+      }
+    }
+  }
+
+  return ignoreLines
+}
+
+/**
+ * Parse source with the TypeScript Babel plugin, falling back to the Flow
+ * plugin for Flow-typed React files that fail TS parsing.
+ */
+export function parseSource(src: string) {
+  try {
+    return parse(src, parserOptsTs)
+  } catch {
+    return parse(src, parserOptsFlow)
+  }
+}
+
+/**
  * Type guard to check if a node is a BinaryExpression or LogicalExpression.
  */
 export function isBinaryOrLogical(
@@ -122,14 +169,7 @@ export function collectOperatorTargets(
   src: string,
   opValue: string,
 ): OperatorTarget[] {
-  let ast
-
-  try {
-    ast = parse(src, parserOptsTs)
-  } catch {
-    // Flow-typed React sources fail under TS parsing; fall back to Flow plugins.
-    ast = parse(src, parserOptsFlow)
-  }
+  const ast = parseSource(src)
   const fileAst = ast as t.File & {
     tokens?: TokenLike[]
     comments?: t.Comment[]
@@ -138,28 +178,7 @@ export function collectOperatorTargets(
   const comments = fileAst.comments ?? []
 
   const out: OperatorTarget[] = []
-  const ignoreLines = new Set<number>()
-
-  for (const comment of comments) {
-    const text = comment.value.trim()
-    if (!text) continue
-    if (!comment.loc) continue
-
-    const startLine = comment.loc.start.line
-    const endLine = comment.loc.end.line
-
-    if (text.includes('mutineer-disable-next-line')) {
-      ignoreLines.add(endLine + 1)
-    }
-    if (
-      text.includes('mutineer-disable-line') ||
-      text.includes('mutineer-disable')
-    ) {
-      for (let line = startLine; line <= endLine; line++) {
-        ignoreLines.add(line)
-      }
-    }
-  }
+  const ignoreLines = buildIgnoreLines(comments)
 
   traverse(ast, {
     enter(p) {
