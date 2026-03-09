@@ -1,16 +1,35 @@
-name: Release Please
+name: CI
 
 on:
   push:
-    branches:
-      - main
+    branches: ['*']
+  pull_request:
+    branches: [main]
 
 permissions:
   contents: write
   pull-requests: write
 
 jobs:
+  ci:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [20, 22]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+      - run: npm test
+
   release-please:
+    needs: ci
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
@@ -21,7 +40,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
   publish:
-    needs: release-please
+    needs: [ci, release-please]
     if: ${{ needs.release-please.outputs.release_created }}
     runs-on: ubuntu-latest
     permissions:
