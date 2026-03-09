@@ -10,6 +10,8 @@ module.exports = [
   {
     ignores: [
       'mutineer.config.ts',
+      'vitest.config.ts',
+      'commitlint.config.cjs',
       'dist/**',
       'node_modules/**',
       'coverage/**',
@@ -20,7 +22,7 @@ module.exports = [
 
   // TypeScript files
   {
-    files: ['**/*.ts', '**/*.tsx', 'mutineer.config.ts', 'vitest.config.ts'],
+    files: ['**/*.ts', '**/*.tsx'],
     languageOptions: {
       parser: tsParser,
       parserOptions: {
@@ -37,6 +39,16 @@ module.exports = [
       // Project-specific adjustments
       'no-console': 'off',
       semi: ['error', 'never'],
+    },
+  },
+
+  // Test files — relax strict rules for mocking/stubs
+  {
+    files: ['**/__tests__/**/*.ts'],
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-unused-vars': 'off',
+      '@typescript-eslint/no-this-alias': 'off',
     },
   },
 
