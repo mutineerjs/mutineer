@@ -27,7 +27,7 @@
     "node": ">=20"
   },
   "bin": {
-    "mutineer": "./dist/bin/mutineer.js"
+    "mutineer": "dist/bin/mutineer.js"
   },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
