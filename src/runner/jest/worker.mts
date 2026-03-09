@@ -53,7 +53,7 @@ async function main(): Promise<void> {
   try {
     await runtime.init()
   } catch (err) {
-    log.error(`Failed to initialize: ${err}`)
+    log.error(`Failed to initialise: ${err}`)
     process.exit(1)
   }
 

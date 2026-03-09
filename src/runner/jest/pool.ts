@@ -247,7 +247,7 @@ export class JestPool {
     jestConfig?: string
     createWorker?: JestPoolOptions['createWorker']
   }
-  private initialized = false
+  private initialised = false
   private shuttingDown = false
 
   constructor(options: JestPoolOptions) {
@@ -261,7 +261,7 @@ export class JestPool {
   }
 
   async init(): Promise<void> {
-    if (this.initialized) return
+    if (this.initialised) return
 
     const startPromises: Promise<void>[] = []
 
@@ -287,7 +287,7 @@ export class JestPool {
     }
 
     await Promise.all(startPromises)
-    this.initialized = true
+    this.initialised = true
   }
 
   private handleWorkerExit(worker: JestWorker): void {
@@ -347,8 +347,8 @@ export class JestPool {
   }
 
   async run(mutant: MutantPayload, tests: string[]): Promise<MutantRunSummary> {
-    if (!this.initialized) {
-      throw new Error('Pool not initialized. Call init() first.')
+    if (!this.initialised) {
+      throw new Error('Pool not initialised. Call init() first.')
     }
     if (this.shuttingDown) {
       throw new Error('Pool is shutting down')
@@ -374,7 +374,7 @@ export class JestPool {
     await Promise.all(this.workers.map((w) => w.shutdown()))
     this.workers = []
     this.availableWorkers = []
-    this.initialized = false
+    this.initialised = false
   }
 }
 

@@ -28,10 +28,10 @@ export interface RedirectConfig {
 }
 
 /**
- * Initialize the global redirect state.
+ * Initialise the global redirect state.
  * Must be called once at module load time.
  */
-export function initializeRedirectState(): void {
+export function initialiseRedirectState(): void {
   globalThis.__mutineer_redirect__ = { from: null, to: null }
 }
 
@@ -70,5 +70,5 @@ export function clearRedirect(): void {
   globalThis.__mutineer_redirect__ = { from: null, to: null }
 }
 
-// Initialize on module load
-initializeRedirectState()
+// Initialise on module load
+initialiseRedirectState()

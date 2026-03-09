@@ -52,8 +52,7 @@ export async function executePool(opts: PoolExecutionOptions): Promise<void> {
       const killRateString = summary.killRate.toFixed(2)
       const thresholdString = opts.minKillPercent.toFixed(2)
       if (summary.killRate < opts.minKillPercent) {
-        const note =
-          summary.evaluated === 0 ? ' No mutants were executed.' : ''
+        const note = summary.evaluated === 0 ? ' No mutants were executed.' : ''
         log.error(
           `Mutation kill rate ${killRateString}% did not meet required ${thresholdString}% threshold.${note}`,
         )
@@ -66,7 +65,7 @@ export async function executePool(opts: PoolExecutionOptions): Promise<void> {
     }
   }
 
-  // Initialize worker pool
+  // Initialise worker pool
   const workerLogSuffix =
     workerCount < concurrency ? ` (requested ${concurrency})` : ''
   log.info(

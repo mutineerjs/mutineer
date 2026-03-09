@@ -49,6 +49,249 @@ describe('coverage utilities', () => {
     expect(getFileCoverageStats(coverage, '/nope.ts')).toBeNull()
   })
 
+  it('loads coverage from a relative path', async () => {
+    const tmpDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mutineer-coverage-'),
+    )
+    const filePath = '/src/file.ts'
+    const data = {
+      [filePath]: {
+        path: filePath,
+        statementMap: {
+          '0': { start: { line: 1, column: 0 }, end: { line: 1, column: 10 } },
+        },
+        s: { '0': 1 },
+      },
+    }
+    await fs.writeFile(
+      path.join(tmpDir, 'cov.json'),
+      JSON.stringify(data),
+      'utf8',
+    )
+
+    try {
+      const coverage = await loadCoverageData('cov.json', tmpDir)
+      expect(coverage.coveredLines.size).toBeGreaterThan(0)
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true })
+    }
+  })
+
+  it('throws on missing coverage file', async () => {
+    await expect(
+      loadCoverageData('/nonexistent/path.json', '/tmp'),
+    ).rejects.toThrow('Failed to read coverage file')
+  })
+
+  it('throws on invalid JSON in coverage file', async () => {
+    const tmpDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mutineer-coverage-'),
+    )
+    await fs.writeFile(path.join(tmpDir, 'bad.json'), 'not json', 'utf8')
+
+    try {
+      await expect(
+        loadCoverageData(path.join(tmpDir, 'bad.json'), tmpDir),
+      ).rejects.toThrow('Failed to parse coverage file')
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true })
+    }
+  })
+
+  it('skips files with missing statementMap or s', async () => {
+    const tmpDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mutineer-coverage-'),
+    )
+    const data = {
+      '/src/nomap.ts': { path: '/src/nomap.ts' },
+      '/src/nos.ts': {
+        path: '/src/nos.ts',
+        statementMap: {
+          '0': { start: { line: 1, column: 0 }, end: { line: 1, column: 10 } },
+        },
+      },
+    }
+    await fs.writeFile(
+      path.join(tmpDir, 'cov.json'),
+      JSON.stringify(data),
+      'utf8',
+    )
+
+    try {
+      const coverage = await loadCoverageData(
+        path.join(tmpDir, 'cov.json'),
+        tmpDir,
+      )
+      expect(coverage.coveredLines.size).toBe(0)
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true })
+    }
+  })
+
+  it('normalizes relative file paths in coverage data', async () => {
+    const tmpDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mutineer-coverage-'),
+    )
+    const data = {
+      'src/relative.ts': {
+        path: 'src/relative.ts',
+        statementMap: {
+          '0': { start: { line: 1, column: 0 }, end: { line: 1, column: 10 } },
+        },
+        s: { '0': 1 },
+      },
+    }
+    await fs.writeFile(
+      path.join(tmpDir, 'cov.json'),
+      JSON.stringify(data),
+      'utf8',
+    )
+
+    try {
+      const coverage = await loadCoverageData(
+        path.join(tmpDir, 'cov.json'),
+        tmpDir,
+      )
+      // Should have resolved relative path
+      const absPath = path.join(tmpDir, 'src/relative.ts')
+      expect(coverage.coveredLines.has(absPath)).toBe(true)
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true })
+    }
+  })
+
+  it('skips files where all statements have zero hits', async () => {
+    const tmpDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mutineer-coverage-'),
+    )
+    const data = {
+      '/src/uncovered.ts': {
+        path: '/src/uncovered.ts',
+        statementMap: {
+          '0': { start: { line: 1, column: 0 }, end: { line: 1, column: 10 } },
+        },
+        s: { '0': 0 },
+      },
+    }
+    await fs.writeFile(
+      path.join(tmpDir, 'cov.json'),
+      JSON.stringify(data),
+      'utf8',
+    )
+
+    try {
+      const coverage = await loadCoverageData(
+        path.join(tmpDir, 'cov.json'),
+        tmpDir,
+      )
+      expect(coverage.coveredLines.size).toBe(0)
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true })
+    }
+  })
+
+  it('isLineCovered returns false for uncovered file', () => {
+    const coverage = { coveredLines: new Map<string, Set<number>>() }
+    expect(isLineCovered(coverage, '/nonexistent.ts', 1)).toBe(false)
+  })
+
+  it('returns null for per-test coverage when no files found', async () => {
+    const tmpDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mutineer-coverage-'),
+    )
+    await fs.mkdir(path.join(tmpDir, 'empty-reports'), { recursive: true })
+
+    try {
+      const map = await loadPerTestCoverageData(
+        path.join(tmpDir, 'empty-reports'),
+        tmpDir,
+      )
+      expect(map).toBeNull()
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true })
+    }
+  })
+
+  it('loads per-test coverage in format B (direct arrays)', async () => {
+    const tmpDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mutineer-coverage-'),
+    )
+    const reportsDir = path.join(tmpDir, 'coverage')
+    await fs.mkdir(reportsDir, { recursive: true })
+
+    const formatB = {
+      '/test/a.spec.ts': {
+        '/src/a.ts': [1, 2, 3],
+      },
+    }
+    await fs.writeFile(
+      path.join(reportsDir, 'per-test-coverage.json'),
+      JSON.stringify(formatB),
+      'utf8',
+    )
+
+    try {
+      const map = await loadPerTestCoverageData(reportsDir, tmpDir)
+      expect(map).not.toBeNull()
+      const lines = map!.get('/test/a.spec.ts')!.get('/src/a.ts')
+      expect(lines!.has(1)).toBe(true)
+      expect(lines!.has(3)).toBe(true)
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true })
+    }
+  })
+
+  it('handles per-test coverage with non-object/null values gracefully', async () => {
+    const tmpDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mutineer-coverage-'),
+    )
+    const reportsDir = path.join(tmpDir, 'coverage')
+    await fs.mkdir(reportsDir, { recursive: true })
+
+    const data = {
+      '/test/a.spec.ts': null,
+      '/test/b.spec.ts': 'not-an-object',
+    }
+    await fs.writeFile(
+      path.join(reportsDir, 'per-test-coverage.json'),
+      JSON.stringify(data),
+      'utf8',
+    )
+
+    try {
+      const map = await loadPerTestCoverageData(reportsDir, tmpDir)
+      // No valid entries, should return null
+      expect(map).toBeNull()
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true })
+    }
+  })
+
+  it('uses relative reportsDir when not absolute', async () => {
+    const tmpDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mutineer-coverage-'),
+    )
+    const reportsDir = path.join(tmpDir, 'reports')
+    await fs.mkdir(reportsDir, { recursive: true })
+
+    const data = {
+      '/test/a.spec.ts': { '/src/a.ts': [1] },
+    }
+    await fs.writeFile(
+      path.join(reportsDir, 'per-test-coverage.json'),
+      JSON.stringify(data),
+      'utf8',
+    )
+
+    try {
+      // Pass relative path
+      const map = await loadPerTestCoverageData('reports', tmpDir)
+      expect(map).not.toBeNull()
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true })
+    }
+  })
+
   it('loads per-test coverage data from various shapes', async () => {
     const tmpDir = await fs.mkdtemp(
       path.join(os.tmpdir(), 'mutineer-coverage-'),

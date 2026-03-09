@@ -76,7 +76,7 @@ async function main(): Promise<void> {
   try {
     await runtime.init()
   } catch (err) {
-    log.error(`Failed to initialize Vitest: ${err}`)
+    log.error(`Failed to initialise Vitest: ${err}`)
     process.exit(1)
   }
 

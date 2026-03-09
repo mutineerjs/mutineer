@@ -140,9 +140,7 @@ export class VitestAdapter implements TestRunnerAdapter {
     try {
       this.vitestPath = resolveVitestPath()
     } catch {
-      throw new Error(
-        "Cannot find 'vitest'. Install it with: npm i -D vitest",
-      )
+      throw new Error("Cannot find 'vitest'. Install it with: npm i -D vitest")
     }
 
     // Prepare base args by stripping mutineer-specific flags
@@ -208,7 +206,7 @@ export class VitestAdapter implements TestRunnerAdapter {
     tests: readonly string[],
   ): Promise<MutantRunResult> {
     if (!this.pool) {
-      throw new Error('VitestAdapter not initialized. Call init() first.')
+      throw new Error('VitestAdapter not initialised. Call init() first.')
     }
 
     try {
