@@ -3,7 +3,7 @@
   "private": true,
   "scripts": {
     "test": "jest",
-    "mutate": "MUTINEER_DEBUG=1 ../../dist/bin/mutineer.js --config mutineer.config.ts"
+    "mutate": "MUTINEER_DEBUG=0 ../../dist/bin/mutineer.js run -- --config mutineer.config.ts"
   },
   "devDependencies": {
     "@jest/core": "^29.7.0",
