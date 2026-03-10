@@ -335,6 +335,101 @@ describe('executePool', () => {
     expect(cache['missing-file-key'].originalSnippet).toBeUndefined()
   })
 
+  it('escaped mutant stores coveringTests', async () => {
+    const tmpFile = path.join(tmpDir, 'covering.ts')
+    await fs.writeFile(tmpFile, 'const x = a + b\n')
+
+    const adapter = makeAdapter({
+      runMutant: vi
+        .fn()
+        .mockResolvedValue({ status: 'escaped', durationMs: 1 }),
+    })
+    const cache: Record<string, MutantCacheEntry> = {}
+    const tests = ['/tests/foo.spec.ts', '/tests/bar.spec.ts']
+    const task = makeTask({
+      key: 'covering-key',
+      tests,
+      v: {
+        id: 'covering.ts#0',
+        name: 'flipArith',
+        file: tmpFile,
+        code: 'const x = a - b\n',
+        line: 1,
+        col: 10,
+        tests,
+      },
+    })
+
+    await executePool({
+      tasks: [task],
+      adapter,
+      cache,
+      concurrency: 1,
+      progressMode: 'list',
+      cwd: tmpDir,
+    })
+
+    expect(cache['covering-key'].coveringTests).toEqual(tests)
+  })
+
+  it('escaped mutant uses directTests for coveringTests when available', async () => {
+    const tmpFile = path.join(tmpDir, 'direct-covering.ts')
+    await fs.writeFile(tmpFile, 'const x = a + b\n')
+
+    const adapter = makeAdapter({
+      runMutant: vi
+        .fn()
+        .mockResolvedValue({ status: 'escaped', durationMs: 1 }),
+    })
+    const cache: Record<string, MutantCacheEntry> = {}
+    const directTests = ['/direct.spec.ts']
+    const allTests = ['/direct.spec.ts', '/transitive.spec.ts']
+    const task = makeTask({
+      key: 'direct-covering-key',
+      tests: allTests,
+      directTests,
+      v: {
+        id: 'direct-covering.ts#0',
+        name: 'flipArith',
+        file: tmpFile,
+        code: 'const x = a - b\n',
+        line: 1,
+        col: 10,
+        tests: allTests,
+      },
+    })
+
+    await executePool({
+      tasks: [task],
+      adapter,
+      cache,
+      concurrency: 1,
+      progressMode: 'list',
+      cwd: tmpDir,
+    })
+
+    expect(cache['direct-covering-key'].coveringTests).toEqual(directTests)
+  })
+
+  it('killed mutant does not store coveringTests', async () => {
+    const adapter = makeAdapter({
+      runMutant: vi.fn().mockResolvedValue({ status: 'killed', durationMs: 1 }),
+    })
+    const cache: Record<string, MutantCacheEntry> = {}
+    const task = makeTask({ key: 'killed-covering-key' })
+
+    await executePool({
+      tasks: [task],
+      adapter,
+      cache,
+      concurrency: 1,
+      progressMode: 'list',
+      cwd: tmpDir,
+    })
+
+    expect(cache['killed-covering-key'].coveringTests).toBeUndefined()
+  })
+
   it('handles adapter errors gracefully and still shuts down', async () => {
     const adapter = makeAdapter({
       runMutant: vi.fn().mockRejectedValue(new Error('adapter failure')),

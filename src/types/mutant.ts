@@ -38,6 +38,7 @@ export interface MutantCacheEntry extends MutantLocation {
   readonly mutator: string
   readonly originalSnippet?: string
   readonly mutatedSnippet?: string
+  readonly coveringTests?: readonly string[]
 }
 
 export interface MutantResult extends MutantCacheEntry {

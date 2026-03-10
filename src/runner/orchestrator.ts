@@ -93,7 +93,7 @@ export async function runOrchestrator(cliArgs: string[], cwd: string) {
   // 4. Discover targets and tests
   const cache = await readMutantCache(cwd)
   const discovered = await autoDiscoverTargetsAndTests(cwd, cfg)
-  const testMap = discovered.testMap
+  const { testMap, directTestMap } = discovered
 
   const targets: MutateTarget[] = cfg.targets?.length
     ? [...cfg.targets]
@@ -159,7 +159,11 @@ export async function runOrchestrator(cliArgs: string[], cwd: string) {
   }
 
   // 8. Prepare tasks and execute via worker pool
-  const tasks = prepareTasks(variants, updatedCoverage.perTestCoverage)
+  const tasks = prepareTasks(
+    variants,
+    updatedCoverage.perTestCoverage,
+    directTestMap,
+  )
 
   await executePool({
     tasks,

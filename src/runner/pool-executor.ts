@@ -99,7 +99,7 @@ export async function executePool(opts: PoolExecutionOptions): Promise<void> {
   let nextIdx = 0
 
   async function processTask(task: MutantTask): Promise<void> {
-    const { v, tests, key } = task
+    const { v, tests, key, directTests } = task
 
     log.debug('Cache ' + JSON.stringify(cache))
 
@@ -161,6 +161,10 @@ export async function executePool(opts: PoolExecutionOptions): Promise<void> {
       col: v.col,
       mutator: v.name,
       ...(originalSnippet !== undefined && { originalSnippet, mutatedSnippet }),
+      ...(status === 'escaped' &&
+        (directTests ?? tests).length > 0 && {
+          coveringTests: directTests ?? tests,
+        }),
     }
     progress.update(status)
   }

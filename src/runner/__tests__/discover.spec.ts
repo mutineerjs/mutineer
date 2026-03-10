@@ -33,6 +33,40 @@ vi.mock('vite', async () => {
 })
 
 describe('autoDiscoverTargetsAndTests', () => {
+  it('directTestMap only includes direct importers', async () => {
+    const tmpDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mutineer-discover-direct-'),
+    )
+    const srcDir = path.join(tmpDir, 'src')
+    const moduleX = path.join(srcDir, 'x.ts')
+    const moduleY = path.join(srcDir, 'y.ts')
+    const testFile = path.join(srcDir, 'a.test.ts')
+
+    await fs.mkdir(srcDir, { recursive: true })
+    await fs.writeFile(moduleY, 'export const y = 2\n', 'utf8')
+    const importY = ['im', 'port { y } from "./y"'].join('')
+    await fs.writeFile(moduleX, `${importY}\nexport const x = 1\n`, 'utf8')
+    const importX = ['im', 'port { x } from "./x"'].join('')
+    await fs.writeFile(testFile, `${importX}\nconsole.log(x)\n`, 'utf8')
+
+    try {
+      const { directTestMap } = await autoDiscoverTargetsAndTests(tmpDir, {
+        testPatterns: ['**/*.test.ts'],
+      })
+
+      const testAbs = normalizePath(testFile)
+      const xAbs = normalizePath(moduleX)
+      const yAbs = normalizePath(moduleY)
+
+      // x is directly imported by the test
+      expect(directTestMap.get(xAbs)?.has(testAbs)).toBe(true)
+      // y is only transitively imported (x -> y), not directly by the test
+      expect(directTestMap.get(yAbs)?.has(testAbs)).toBeFalsy()
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true })
+    }
+  })
+
   it('ignores test files when collecting mutate targets', async () => {
     const tmpDir = await fs.mkdtemp(
       path.join(os.tmpdir(), 'mutineer-discover-'),

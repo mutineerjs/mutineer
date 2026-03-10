@@ -108,6 +108,17 @@ export function printSummary(
         console.log('    ' + chalk.red('- ' + entry.originalSnippet))
         console.log('    ' + chalk.green('+ ' + entry.mutatedSnippet))
       }
+      if (entry.coveringTests?.length) {
+        const shown = entry.coveringTests.slice(0, 2)
+        for (const t of shown) {
+          console.log('    ' + chalk.dim('↳ ' + path.relative(cwd, t)))
+        }
+        if (entry.coveringTests.length > 2) {
+          console.log(
+            '    ' + chalk.dim(`  +${entry.coveringTests.length - 2} more`),
+          )
+        }
+      }
     }
   }
   if (entriesByStatus.skipped.length) {
