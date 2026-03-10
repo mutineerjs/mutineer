@@ -1,4 +1,4 @@
-import { add, isEven } from '../src/calc'
+import { add, isEven, isAdult } from '../src/calc'
 
 describe('calc', () => {
   it('adds numbers', () => {
@@ -14,5 +14,13 @@ describe('calc', () => {
   it('checks even numbers', () => {
     expect(isEven(2)).toBe(true)
     expect(isEven(3)).toBe(false)
+  })
+
+  it('identifies adults', () => {
+    expect(isAdult(20)).toBe(true)
+    expect(isAdult(15)).toBe(false)
+    // This mutation escapes! Mutineer changes `>=` to `>` and these tests still pass.
+    // Uncomment the line below to kill the boundary mutant:
+    // expect(isAdult(18)).toBe(true)
   })
 })

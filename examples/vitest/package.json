@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "test": "vitest run",
-    "mutate": "MUTINEER_DEBUG=0 ../../dist/bin/mutineer.js --config mutineer.config.ts"
+    "mutate": "MUTINEER_DEBUG=0 ../../dist/bin/mutineer.js run -- --config mutineer.config.ts"
   },
   "devDependencies": {
     "typescript": "^5.5.4",
