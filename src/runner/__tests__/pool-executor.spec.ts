@@ -231,6 +231,110 @@ describe('executePool', () => {
     expect(content['persist-key']).toBeDefined()
   })
 
+  it('escaped mutant stores snippets when lines differ', async () => {
+    const tmpFile = path.join(tmpDir, 'source.ts')
+    await fs.writeFile(tmpFile, 'const x = a + b\n')
+
+    const adapter = makeAdapter({
+      runMutant: vi
+        .fn()
+        .mockResolvedValue({ status: 'escaped', durationMs: 1 }),
+    })
+    const cache: Record<string, MutantCacheEntry> = {}
+    const task = makeTask({
+      key: 'snippet-key',
+      v: {
+        id: 'source.ts#0',
+        name: 'flipArith',
+        file: tmpFile,
+        code: 'const x = a - b\n',
+        line: 1,
+        col: 10,
+        tests: ['/tests/file.test.ts'],
+      },
+    })
+
+    await executePool({
+      tasks: [task],
+      adapter,
+      cache,
+      concurrency: 1,
+      progressMode: 'list',
+      cwd: tmpDir,
+    })
+
+    expect(cache['snippet-key'].originalSnippet).toBe('const x = a + b')
+    expect(cache['snippet-key'].mutatedSnippet).toBe('const x = a - b')
+  })
+
+  it('escaped mutant omits snippets when original and mutated lines are identical', async () => {
+    const tmpFile = path.join(tmpDir, 'source2.ts')
+    await fs.writeFile(tmpFile, 'const x = a + b\n')
+
+    const adapter = makeAdapter({
+      runMutant: vi
+        .fn()
+        .mockResolvedValue({ status: 'escaped', durationMs: 1 }),
+    })
+    const cache: Record<string, MutantCacheEntry> = {}
+    const task = makeTask({
+      key: 'no-snippet-key',
+      v: {
+        id: 'source2.ts#0',
+        name: 'flipArith',
+        file: tmpFile,
+        code: 'const x = a + b\n',
+        line: 1,
+        col: 10,
+        tests: ['/tests/file.test.ts'],
+      },
+    })
+
+    await executePool({
+      tasks: [task],
+      adapter,
+      cache,
+      concurrency: 1,
+      progressMode: 'list',
+      cwd: tmpDir,
+    })
+
+    expect(cache['no-snippet-key'].originalSnippet).toBeUndefined()
+  })
+
+  it('escaped mutant omits snippets when file read fails', async () => {
+    const adapter = makeAdapter({
+      runMutant: vi
+        .fn()
+        .mockResolvedValue({ status: 'escaped', durationMs: 1 }),
+    })
+    const cache: Record<string, MutantCacheEntry> = {}
+    const task = makeTask({
+      key: 'missing-file-key',
+      v: {
+        id: 'missing.ts#0',
+        name: 'flipArith',
+        file: '/nonexistent/path/missing.ts',
+        code: 'const x = a - b\n',
+        line: 1,
+        col: 10,
+        tests: ['/tests/file.test.ts'],
+      },
+    })
+
+    await executePool({
+      tasks: [task],
+      adapter,
+      cache,
+      concurrency: 1,
+      progressMode: 'list',
+      cwd: tmpDir,
+    })
+
+    expect(cache['missing-file-key'].status).toBe('escaped')
+    expect(cache['missing-file-key'].originalSnippet).toBeUndefined()
+  })
+
   it('handles adapter errors gracefully and still shuts down', async () => {
     const adapter = makeAdapter({
       runMutant: vi.fn().mockRejectedValue(new Error('adapter failure')),

@@ -54,6 +54,42 @@ describe('summary', () => {
     logSpy.mockRestore()
   })
 
+  it('prints diff lines for escaped mutant with snippets', () => {
+    const cache = {
+      a: makeEntry({
+        status: 'escaped',
+        originalSnippet: 'return a + b',
+        mutatedSnippet: 'return a - b',
+      }),
+    }
+    const summary = computeSummary(cache)
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    printSummary(summary, cache)
+
+    const lines = logSpy.mock.calls.map((c) => stripAnsi(c.join(' ')))
+    expect(lines.some((l) => l.includes('- return a + b'))).toBe(true)
+    expect(lines.some((l) => l.includes('+ return a - b'))).toBe(true)
+
+    logSpy.mockRestore()
+  })
+
+  it('does not print diff lines for escaped mutant without snippets', () => {
+    const cache = {
+      a: makeEntry({ status: 'escaped' }),
+    }
+    const summary = computeSummary(cache)
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    printSummary(summary, cache)
+
+    const lines = logSpy.mock.calls.map((c) => stripAnsi(c.join(' ')))
+    expect(lines.some((l) => l.trimStart().startsWith('- '))).toBe(false)
+    expect(lines.some((l) => l.trimStart().startsWith('+ '))).toBe(false)
+
+    logSpy.mockRestore()
+  })
+
   it('summarise returns summary and prints', () => {
     const cache = { a: makeEntry({ status: 'killed' }) }
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})

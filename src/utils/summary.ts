@@ -99,8 +99,16 @@ export function printSummary(
   }
   if (entriesByStatus.escaped.length) {
     console.log('\n' + chalk.red.bold('Escaped Mutants:'))
-    for (const entry of entriesByStatus.escaped)
+    for (const entry of entriesByStatus.escaped) {
       console.log('  ' + formatRow(entry))
+      if (
+        entry.originalSnippet !== undefined &&
+        entry.mutatedSnippet !== undefined
+      ) {
+        console.log('    ' + chalk.red('- ' + entry.originalSnippet))
+        console.log('    ' + chalk.green('+ ' + entry.mutatedSnippet))
+      }
+    }
   }
   if (entriesByStatus.skipped.length) {
     console.log('\n' + chalk.dim('Skipped Mutants:'))

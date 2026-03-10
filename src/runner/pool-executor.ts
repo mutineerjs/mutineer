@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import { render, type Instance } from 'ink'
 import { createElement } from 'react'
 
@@ -134,12 +135,32 @@ export async function executePool(opts: PoolExecutionOptions): Promise<void> {
       tests,
     )
     const status: MutantStatus = result.status
+
+    let originalSnippet: string | undefined
+    let mutatedSnippet: string | undefined
+    if (status === 'escaped') {
+      try {
+        const originalLines = fs.readFileSync(v.file, 'utf8').split('\n')
+        const mutatedLines = v.code.split('\n')
+        const lineIdx = v.line - 1
+        const orig = originalLines[lineIdx]?.trim()
+        const mutated = mutatedLines[lineIdx]?.trim()
+        if (orig !== undefined && mutated !== undefined && orig !== mutated) {
+          originalSnippet = orig
+          mutatedSnippet = mutated
+        }
+      } catch {
+        // best-effort
+      }
+    }
+
     cache[key] = {
       status,
       file: v.file,
       line: v.line,
       col: v.col,
       mutator: v.name,
+      ...(originalSnippet !== undefined && { originalSnippet, mutatedSnippet }),
     }
     progress.update(status)
   }
