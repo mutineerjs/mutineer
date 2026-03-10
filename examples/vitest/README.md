@@ -20,8 +20,7 @@ npm test
 Build Mutineer in the repo root, then run the sample:
 
 ```bash
-cd ../..
-npm run build:cli
+npm run build
 cd examples/vitest
 npm run mutate
 ```
