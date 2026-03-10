@@ -36,6 +36,8 @@ export interface Variant extends MutantDescriptor {
 export interface MutantCacheEntry extends MutantLocation {
   readonly status: MutantStatus
   readonly mutator: string
+  readonly originalSnippet?: string
+  readonly mutatedSnippet?: string
 }
 
 export interface MutantResult extends MutantCacheEntry {
