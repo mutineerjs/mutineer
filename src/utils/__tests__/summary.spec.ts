@@ -90,6 +90,40 @@ describe('summary', () => {
     logSpy.mockRestore()
   })
 
+  it('prints covering test path for escaped mutant', () => {
+    const cache = {
+      a: makeEntry({
+        status: 'escaped',
+        coveringTests: ['/abs/foo.spec.ts'],
+      }),
+    }
+    const summary = computeSummary(cache)
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    printSummary(summary, cache)
+
+    const lines = logSpy.mock.calls.map((c) => stripAnsi(c.join(' ')))
+    expect(lines.some((l) => l.includes('↳'))).toBe(true)
+    expect(lines.some((l) => l.includes('foo.spec.ts'))).toBe(true)
+
+    logSpy.mockRestore()
+  })
+
+  it('does not print covering tests when array is absent', () => {
+    const cache = {
+      a: makeEntry({ status: 'escaped' }),
+    }
+    const summary = computeSummary(cache)
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    printSummary(summary, cache)
+
+    const lines = logSpy.mock.calls.map((c) => stripAnsi(c.join(' ')))
+    expect(lines.some((l) => l.includes('↳'))).toBe(false)
+
+    logSpy.mockRestore()
+  })
+
   it('summarise returns summary and prints', () => {
     const cache = { a: makeEntry({ status: 'killed' }) }
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})

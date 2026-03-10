@@ -3,6 +3,7 @@ import { prepareTasks } from '../tasks.js'
 import { hash, keyForTests } from '../cache.js'
 import type { Variant } from '../../types/mutant.js'
 import type { PerTestCoverageMap } from '../../utils/coverage.js'
+import type { TestMap } from '../discover.js'
 
 function makeVariant(overrides: Partial<Variant> = {}): Variant {
   return {
@@ -96,6 +97,22 @@ describe('prepareTasks', () => {
     })
     const tasks = prepareTasks([v], null)
     expect(tasks[0].tests).toHaveLength(2)
+  })
+
+  it('populates directTests from directTestMap', () => {
+    const v = makeVariant({ file: '/src/file.ts', tests: ['/tests/a.test.ts'] })
+    const directTestMap: TestMap = new Map([
+      ['/src/file.ts', new Set(['/tests/direct.test.ts'])],
+    ])
+    const tasks = prepareTasks([v], null, directTestMap)
+    expect(tasks[0].directTests).toEqual(['/tests/direct.test.ts'])
+  })
+
+  it('directTests absent when not in directTestMap', () => {
+    const v = makeVariant({ file: '/src/file.ts', tests: ['/tests/a.test.ts'] })
+    const directTestMap: TestMap = new Map()
+    const tasks = prepareTasks([v], null, directTestMap)
+    expect(tasks[0].directTests).toBeUndefined()
   })
 
   it('handles multiple variants', () => {

@@ -20,6 +20,7 @@ export type TestMap = Map<string, Set<string>> // key: absolute target file, val
 export interface DiscoveryResult {
   readonly targets: MutateTarget[]
   readonly testMap: TestMap
+  readonly directTestMap: TestMap
 }
 
 const log = createLogger('discover')
@@ -266,7 +267,8 @@ export async function autoDiscoverTargetsAndTests(
     absolute: true,
     ignore,
   })
-  if (!tests.length) return { targets: [], testMap: new Map() }
+  if (!tests.length)
+    return { targets: [], testMap: new Map(), directTestMap: new Map() }
   const testSet = new Set(tests.map((t) => normalizePath(t)))
 
   // 2) Create resolver (Vite if available, otherwise Node-based fallback)
@@ -274,6 +276,7 @@ export async function autoDiscoverTargetsAndTests(
 
   const targets: TargetMap = new Map()
   const testMap: TestMap = new Map()
+  const directTestMap: TestMap = new Map()
   const contentCache = new Map<string, string | null>()
   const resolveCache = new Map<string, string>() // key: importer\0spec -> resolved id
 
@@ -309,6 +312,10 @@ export async function autoDiscoverTargetsAndTests(
       }
       if (!testMap.has(key)) testMap.set(key, new Set())
       testMap.get(key)!.add(currentTestAbs)
+      if (depth === 0) {
+        if (!directTestMap.has(key)) directTestMap.set(key, new Set())
+        directTestMap.get(key)!.add(currentTestAbs)
+      }
     }
 
     // read file content to find further imports (works for .vue too; imports are inside <script>)
@@ -365,7 +372,7 @@ export async function autoDiscoverTargetsAndTests(
       }
     }
 
-    return { targets: Array.from(targets.values()), testMap }
+    return { targets: Array.from(targets.values()), testMap, directTestMap }
   } finally {
     await cleanup()
   }
