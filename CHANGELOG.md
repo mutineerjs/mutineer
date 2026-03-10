@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/mutineerjs/mutineer/compare/v0.4.0...v0.5.0) (2026-03-10)
+
+
+### Added
+
+* show test file in results ([#27](https://github.com/mutineerjs/mutineer/issues/27)) ([6816daa](https://github.com/mutineerjs/mutineer/commit/6816daa3310c4d4492876f693457b87fd3e86d95))
+
 ## [0.4.0](https://github.com/mutineerjs/mutineer/compare/v0.3.2...v0.4.0) (2026-03-10)
 
 
