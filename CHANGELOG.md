@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/mutineerjs/mutineer/compare/v0.3.2...v0.4.0) (2026-03-10)
+
+
+### Added
+
+* added mutation diff to summary output ([#25](https://github.com/mutineerjs/mutineer/issues/25)) ([0839553](https://github.com/mutineerjs/mutineer/commit/083955381243a820dce4a03e5d2baf181570e489))
+
 ## [0.3.2](https://github.com/mutineerjs/mutineer/compare/v0.3.1...v0.3.2) (2026-03-09)
 
 
