@@ -18,6 +18,7 @@ import {
   modToMul,
   powerToMul,
 } from '../operator.js'
+import { buildParseContext } from '../utils.js'
 
 // ---------------------------------------------------------------------------
 // Shared behaviour (tested once; all mutators use the same factory)
@@ -59,6 +60,24 @@ describe('operator mutator shared behaviour', () => {
     const src = `const x = a || b`
     const results = andToOr.apply(src)
     expect(results).toHaveLength(0)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// applyWithContext (shared behaviour)
+// ---------------------------------------------------------------------------
+
+describe('operator mutator applyWithContext', () => {
+  it('produces same results as apply', () => {
+    const src = `const ok = a && b && c`
+    const ctx = buildParseContext(src)
+    expect(andToOr.applyWithContext!(src, ctx)).toEqual(andToOr.apply(src))
+  })
+
+  it('respects disable comments via pre-built context', () => {
+    const src = `// mutineer-disable-next-line\nconst ok = a && b`
+    const ctx = buildParseContext(src)
+    expect(andToOr.applyWithContext!(src, ctx)).toHaveLength(0)
   })
 })
 

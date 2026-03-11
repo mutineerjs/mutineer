@@ -1,5 +1,6 @@
 import MagicString from 'magic-string'
 import { getFilteredRegistry } from './variant-utils.js'
+import { buildParseContext } from '../mutators/utils.js'
 import type { MutationVariant } from './types.js'
 
 /**
@@ -36,6 +37,7 @@ export async function mutateVueSfcScriptSetup(
   const registry = getFilteredRegistry(include, exclude)
   const variants: MutationVariant[] = []
   const seenOutputs = new Set<string>()
+  const ctx = buildParseContext(originalBlock)
 
   for (const mutator of registry) {
     // Early termination if limit reached
@@ -43,7 +45,10 @@ export async function mutateVueSfcScriptSetup(
       break
     }
 
-    for (const mutation of mutator.apply(originalBlock)) {
+    const blockMutations = mutator.applyWithContext
+      ? mutator.applyWithContext(originalBlock, ctx)
+      : mutator.apply(originalBlock)
+    for (const mutation of blockMutations) {
       const ms = new MagicString(code)
       ms.overwrite(startOffset, endOffset, mutation.code)
 

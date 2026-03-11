@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import {
   collectOperatorTargets,
+  collectOperatorTargetsFromContext,
   buildIgnoreLines,
+  buildParseContext,
   parseSource,
 } from '../utils.js'
 import type { Comment } from '@babel/types'
@@ -86,7 +88,26 @@ describe('parseSource', () => {
 })
 
 // ---------------------------------------------------------------------------
-// collectOperatorTargets
+// buildParseContext
+// ---------------------------------------------------------------------------
+
+describe('buildParseContext', () => {
+  it('returns an object with ast, tokens, and ignoreLines', () => {
+    const ctx = buildParseContext(`const x = a && b`)
+    expect(ctx.ast.type).toBe('File')
+    expect(Array.isArray(ctx.tokens)).toBe(true)
+    expect(ctx.ignoreLines).toBeInstanceOf(Set)
+  })
+
+  it('populates ignoreLines from disable comments', () => {
+    const src = `// mutineer-disable-next-line\nconst x = a && b`
+    const ctx = buildParseContext(src)
+    expect(ctx.ignoreLines.has(2)).toBe(true)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// collectOperatorTargets / collectOperatorTargetsFromContext
 // ---------------------------------------------------------------------------
 
 describe('collectOperatorTargets', () => {
@@ -102,5 +123,22 @@ const d = e && f
 
     const lines = targets.map((t) => t.line)
     expect(lines).toEqual([5])
+  })
+})
+
+describe('collectOperatorTargetsFromContext', () => {
+  it('returns same results as collectOperatorTargets', () => {
+    const src = `const ok = a && b && c`
+    const ctx = buildParseContext(src)
+    const fromCtx = collectOperatorTargetsFromContext(src, ctx, '&&')
+    const fromSrc = collectOperatorTargets(src, '&&')
+    expect(fromCtx).toEqual(fromSrc)
+  })
+
+  it('honors disable comments via pre-built context', () => {
+    const src = `// mutineer-disable-next-line\nconst x = a && b`
+    const ctx = buildParseContext(src)
+    const targets = collectOperatorTargetsFromContext(src, ctx, '&&')
+    expect(targets).toHaveLength(0)
   })
 })

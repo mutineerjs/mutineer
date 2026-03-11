@@ -5,6 +5,8 @@
  * for mutations. This allows for different mutator implementations to be plugged in.
  */
 
+export type { ParseContext } from './utils.js'
+
 /**
  * Output of a single mutation, including location info and mutated code.
  */
@@ -22,6 +24,10 @@ export interface ASTMutator {
   readonly name: string
   readonly description: string
   apply(src: string): readonly MutationOutput[]
+  applyWithContext?(
+    src: string,
+    ctx: import('./utils.js').ParseContext,
+  ): readonly MutationOutput[]
 }
 
 /**

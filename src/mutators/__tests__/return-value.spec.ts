@@ -7,6 +7,7 @@ import {
   returnEmptyStr,
   returnEmptyArr,
 } from '../return-value.js'
+import { buildParseContext } from '../utils.js'
 
 // ---------------------------------------------------------------------------
 // returnToNull
@@ -284,5 +285,25 @@ describe('returnEmptyArr', () => {
     const src = `function f() { return }`
     const results = returnEmptyArr.apply(src)
     expect(results).toHaveLength(0)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// applyWithContext (shared behaviour)
+// ---------------------------------------------------------------------------
+
+describe('return-value mutator applyWithContext', () => {
+  it('produces same results as apply', () => {
+    const src = `function f() { return x }`
+    const ctx = buildParseContext(src)
+    expect(returnToNull.applyWithContext!(src, ctx)).toEqual(
+      returnToNull.apply(src),
+    )
+  })
+
+  it('respects disable comments via pre-built context', () => {
+    const src = `function f() {\n  // mutineer-disable-next-line\n  return x\n}`
+    const ctx = buildParseContext(src)
+    expect(returnToNull.applyWithContext!(src, ctx)).toHaveLength(0)
   })
 })
