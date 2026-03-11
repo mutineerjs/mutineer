@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import os from 'node:os'
@@ -30,6 +30,91 @@ vi.mock('vite', async () => {
       } as any
     }),
   }
+})
+
+describe('createViteResolver Vue plugin gating', () => {
+  let warnSpy: ReturnType<typeof vi.spyOn>
+
+  beforeEach(() => {
+    warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('does not warn about @vitejs/plugin-vue when no .vue files exist', async () => {
+    const tmpDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mutineer-discover-novue-'),
+    )
+    const srcDir = path.join(tmpDir, 'src')
+    await fs.mkdir(srcDir, { recursive: true })
+    await fs.writeFile(
+      path.join(srcDir, 'a.ts'),
+      'export const a = 1\n',
+      'utf8',
+    )
+    const importLine = ['im', 'port { a } from "./a"'].join('')
+    await fs.writeFile(
+      path.join(srcDir, 'a.test.ts'),
+      `${importLine}\n`,
+      'utf8',
+    )
+
+    try {
+      await autoDiscoverTargetsAndTests(tmpDir, {
+        testPatterns: ['**/*.test.ts'],
+      })
+      const pluginVueWarnings = warnSpy.mock.calls.filter((args: unknown[]) =>
+        String(args[0]).includes('plugin-vue'),
+      )
+      expect(pluginVueWarnings).toHaveLength(0)
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true })
+    }
+  })
+
+  it('warns when .vue files exist but @vitejs/plugin-vue fails to load', async () => {
+    vi.doMock('@vitejs/plugin-vue', () => {
+      throw new Error('Cannot find module @vitejs/plugin-vue')
+    })
+
+    const tmpDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mutineer-discover-vue-'),
+    )
+    const srcDir = path.join(tmpDir, 'src')
+    await fs.mkdir(srcDir, { recursive: true })
+    await fs.writeFile(
+      path.join(srcDir, 'Comp.vue'),
+      '<template><div/></template>\n',
+      'utf8',
+    )
+    await fs.writeFile(
+      path.join(srcDir, 'a.ts'),
+      'export const a = 1\n',
+      'utf8',
+    )
+    const importLine = ['im', 'port { a } from "./a"'].join('')
+    await fs.writeFile(
+      path.join(srcDir, 'a.test.ts'),
+      `${importLine}\n`,
+      'utf8',
+    )
+
+    try {
+      await autoDiscoverTargetsAndTests(tmpDir, {
+        testPatterns: ['**/*.test.ts'],
+        extensions: ['.vue', '.ts'],
+      })
+      const pluginVueWarnings = warnSpy.mock.calls.filter((args: unknown[]) =>
+        String(args[0]).includes('plugin-vue'),
+      )
+      expect(pluginVueWarnings.length).toBeGreaterThan(0)
+    } finally {
+      vi.doUnmock('@vitejs/plugin-vue')
+      await fs.rm(tmpDir, { recursive: true, force: true })
+    }
+  })
 })
 
 describe('autoDiscoverTargetsAndTests', () => {
