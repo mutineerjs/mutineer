@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.1](https://github.com/mutineerjs/mutineer/compare/v0.5.0...v0.5.1) (2026-03-11)
+
+
+### Fixed
+
+* suppress vue plugin warnings in non-vue projects ([#30](https://github.com/mutineerjs/mutineer/issues/30)) ([834984a](https://github.com/mutineerjs/mutineer/commit/834984a194fc5812b190518ddc2306dbcf6cdf8d))
+
 ## [0.5.0](https://github.com/mutineerjs/mutineer/compare/v0.4.0...v0.5.0) (2026-03-10)
 
 
