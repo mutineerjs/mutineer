@@ -430,6 +430,51 @@ describe('executePool', () => {
     expect(cache['killed-covering-key'].coveringTests).toBeUndefined()
   })
 
+  it('correctly stores snippets for multiple escaped mutants from the same file', async () => {
+    const tmpFile = path.join(tmpDir, 'shared.ts')
+    await fs.writeFile(tmpFile, 'const x = a + b\n')
+
+    const adapter = makeAdapter({
+      runMutant: vi
+        .fn()
+        .mockResolvedValue({ status: 'escaped', durationMs: 1 }),
+    })
+    const cache: Record<string, MutantCacheEntry> = {}
+    const makeFileTask = (key: string, mutated: string) =>
+      makeTask({
+        key,
+        v: {
+          id: `shared.ts#${key}`,
+          name: 'flipArith',
+          file: tmpFile,
+          code: mutated,
+          line: 1,
+          col: 10,
+          tests: ['/tests/file.test.ts'],
+        },
+      })
+
+    await executePool({
+      tasks: [
+        makeFileTask('cache-key-1', 'const x = a - b\n'),
+        makeFileTask('cache-key-2', 'const x = a * b\n'),
+        makeFileTask('cache-key-3', 'const x = a / b\n'),
+      ],
+      adapter,
+      cache,
+      concurrency: 1,
+      progressMode: 'list',
+      cwd: tmpDir,
+    })
+
+    expect(cache['cache-key-1'].originalSnippet).toBe('const x = a + b')
+    expect(cache['cache-key-1'].mutatedSnippet).toBe('const x = a - b')
+    expect(cache['cache-key-2'].originalSnippet).toBe('const x = a + b')
+    expect(cache['cache-key-2'].mutatedSnippet).toBe('const x = a * b')
+    expect(cache['cache-key-3'].originalSnippet).toBe('const x = a + b')
+    expect(cache['cache-key-3'].mutatedSnippet).toBe('const x = a / b')
+  })
+
   it('handles adapter errors gracefully and still shuts down', async () => {
     const adapter = makeAdapter({
       runMutant: vi.fn().mockRejectedValue(new Error('adapter failure')),

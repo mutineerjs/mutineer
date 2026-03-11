@@ -80,7 +80,15 @@ function makeReturnMutator(
       src: string,
       ctx: ParseContext,
     ): readonly MutationOutput[] {
-      return collectReturnMutations(src, ctx.ast, ctx.ignoreLines, replacer)
+      const outputs: MutationOutput[] = []
+      for (const info of ctx.preCollected.returnStatements) {
+        const replacement = replacer(info.argNode)
+        if (replacement === null) continue
+        const code =
+          src.slice(0, info.argStart) + replacement + src.slice(info.argEnd)
+        outputs.push({ line: info.line, col: info.col, code })
+      }
+      return outputs
     },
   }
 }

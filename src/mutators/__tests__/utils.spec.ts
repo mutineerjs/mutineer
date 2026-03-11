@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   collectOperatorTargets,
   collectOperatorTargetsFromContext,
+  collectAllTargets,
   buildIgnoreLines,
   buildParseContext,
   parseSource,
@@ -92,17 +93,89 @@ describe('parseSource', () => {
 // ---------------------------------------------------------------------------
 
 describe('buildParseContext', () => {
-  it('returns an object with ast, tokens, and ignoreLines', () => {
+  it('returns an object with ast, tokens, ignoreLines, and preCollected', () => {
     const ctx = buildParseContext(`const x = a && b`)
     expect(ctx.ast.type).toBe('File')
     expect(Array.isArray(ctx.tokens)).toBe(true)
     expect(ctx.ignoreLines).toBeInstanceOf(Set)
+    expect(ctx.preCollected).toBeDefined()
+    expect(ctx.preCollected.operatorTargets).toBeInstanceOf(Map)
+    expect(Array.isArray(ctx.preCollected.returnStatements)).toBe(true)
   })
 
   it('populates ignoreLines from disable comments', () => {
     const src = `// mutineer-disable-next-line\nconst x = a && b`
     const ctx = buildParseContext(src)
     expect(ctx.ignoreLines.has(2)).toBe(true)
+  })
+
+  it('preCollected.operatorTargets groups targets by operator', () => {
+    const src = `const x = a && b || c && d`
+    const ctx = buildParseContext(src)
+    expect(ctx.preCollected.operatorTargets.get('&&')).toHaveLength(2)
+    expect(ctx.preCollected.operatorTargets.get('||')).toHaveLength(1)
+  })
+
+  it('preCollected.returnStatements captures return arguments', () => {
+    const src = `function f() { return x }\nfunction g() { return y }`
+    const ctx = buildParseContext(src)
+    expect(ctx.preCollected.returnStatements).toHaveLength(2)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// collectAllTargets
+// ---------------------------------------------------------------------------
+
+describe('collectAllTargets', () => {
+  it('collects operator targets grouped by operator', () => {
+    const src = `const x = a && b || c`
+    const ctx = buildParseContext(src)
+    const result = collectAllTargets(src, ctx.ast, ctx.tokens, ctx.ignoreLines)
+    expect(result.operatorTargets.get('&&')).toHaveLength(1)
+    expect(result.operatorTargets.get('||')).toHaveLength(1)
+  })
+
+  it('collects return statement info', () => {
+    const src = `function f() { return 42 }`
+    const ctx = buildParseContext(src)
+    const result = collectAllTargets(src, ctx.ast, ctx.tokens, ctx.ignoreLines)
+    expect(result.returnStatements).toHaveLength(1)
+    const info = result.returnStatements[0]
+    expect(info.line).toBe(1)
+    expect(typeof info.col).toBe('number')
+    expect(typeof info.argStart).toBe('number')
+    expect(typeof info.argEnd).toBe('number')
+    expect(info.argNode).toBeDefined()
+  })
+
+  it('skips operators on ignored lines', () => {
+    const src = `// mutineer-disable-next-line\nconst x = a && b`
+    const ctx = buildParseContext(src)
+    const result = collectAllTargets(src, ctx.ast, ctx.tokens, ctx.ignoreLines)
+    expect(result.operatorTargets.get('&&') ?? []).toHaveLength(0)
+  })
+
+  it('skips return statements on ignored lines', () => {
+    const src = `function f() {\n  // mutineer-disable-next-line\n  return x\n}`
+    const ctx = buildParseContext(src)
+    const result = collectAllTargets(src, ctx.ast, ctx.tokens, ctx.ignoreLines)
+    expect(result.returnStatements).toHaveLength(0)
+  })
+
+  it('skips bare return with no argument', () => {
+    const src = `function f() { return }`
+    const ctx = buildParseContext(src)
+    const result = collectAllTargets(src, ctx.ast, ctx.tokens, ctx.ignoreLines)
+    expect(result.returnStatements).toHaveLength(0)
+  })
+
+  it('matches collectOperatorTargetsFromContext for &&', () => {
+    const src = `const x = a && b && c`
+    const ctx = buildParseContext(src)
+    const result = collectAllTargets(src, ctx.ast, ctx.tokens, ctx.ignoreLines)
+    const fromCtx = collectOperatorTargetsFromContext(src, ctx, '&&')
+    expect(result.operatorTargets.get('&&')).toEqual(fromCtx)
   })
 })
 

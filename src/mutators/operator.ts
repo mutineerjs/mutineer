@@ -7,10 +7,7 @@
  */
 
 import type { ASTMutator, MutationOutput } from './types.js'
-import {
-  collectOperatorTargets,
-  collectOperatorTargetsFromContext,
-} from './utils.js'
+import { collectOperatorTargets } from './utils.js'
 import type { ParseContext } from './utils.js'
 
 /**
@@ -50,7 +47,7 @@ function makeOperatorMutator(
     ): readonly MutationOutput[] {
       return targetsToOutputs(
         src,
-        collectOperatorTargetsFromContext(src, ctx, fromOp),
+        ctx.preCollected.operatorTargets.get(fromOp) ?? [],
       )
     },
   }

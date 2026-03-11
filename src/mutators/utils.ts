@@ -157,6 +157,26 @@ export interface TokenLike {
 }
 
 /**
+ * Location info for a single return statement argument, pre-collected
+ * during a single AST traversal so return-value mutators need no traversal.
+ */
+export interface ReturnStatementInfo {
+  readonly line: number
+  readonly col: number
+  readonly argStart: number
+  readonly argEnd: number
+  readonly argNode: t.Expression
+}
+
+/**
+ * All mutation targets pre-collected in a single traversal.
+ */
+export interface PreCollected {
+  readonly operatorTargets: Map<string, OperatorTarget[]>
+  readonly returnStatements: ReturnStatementInfo[]
+}
+
+/**
  * Pre-parsed context for a source file.
  * Allows sharing a single Babel parse across all mutators.
  */
@@ -164,6 +184,77 @@ export interface ParseContext {
   readonly ast: t.File & { tokens?: TokenLike[]; comments?: t.Comment[] }
   readonly tokens: readonly TokenLike[]
   readonly ignoreLines: Set<number>
+  readonly preCollected: PreCollected
+}
+
+/**
+ * Single traversal that collects all operator targets and return statements.
+ * Eliminates per-mutator traversals when using ParseContext.
+ */
+export function collectAllTargets(
+  src: string,
+  ast: t.File & { tokens?: TokenLike[]; comments?: t.Comment[] },
+  tokens: readonly TokenLike[],
+  ignoreLines: Set<number>,
+): PreCollected {
+  const operatorTargets = new Map<string, OperatorTarget[]>()
+  const returnStatements: ReturnStatementInfo[] = []
+
+  function handleBinaryOrLogical(n: t.BinaryExpression | t.LogicalExpression) {
+    const nodeStart = n.start ?? 0
+    const nodeEnd = n.end ?? 0
+    const opValue = n.operator
+    const tok = tokens.find(
+      (tk) =>
+        tk.start >= nodeStart && tk.end <= nodeEnd && tk.value === opValue,
+    )
+    if (tok) {
+      const line = tok.loc.start.line
+      if (ignoreLines.has(line)) return
+      const visualCol = getVisualColumn(src, tok.start)
+      let arr = operatorTargets.get(opValue)
+      if (!arr) {
+        arr = []
+        operatorTargets.set(opValue, arr)
+      }
+      arr.push({
+        start: tok.start,
+        end: tok.end,
+        line,
+        col1: visualCol,
+        op: opValue,
+      })
+    }
+  }
+
+  traverse(ast, {
+    BinaryExpression(p) {
+      handleBinaryOrLogical(p.node)
+    },
+    LogicalExpression(p) {
+      handleBinaryOrLogical(p.node)
+    },
+    ReturnStatement(p) {
+      const node = p.node
+      if (!node.argument) return
+      const line = node.loc?.start.line
+      if (line === undefined) return
+      if (ignoreLines.has(line)) return
+      const argStart = node.argument.start
+      const argEnd = node.argument.end
+      if (argStart == null || argEnd == null) return
+      const col = getVisualColumn(src, node.start ?? 0)
+      returnStatements.push({
+        line,
+        col,
+        argStart,
+        argEnd,
+        argNode: node.argument,
+      })
+    },
+  })
+
+  return { operatorTargets, returnStatements }
 }
 
 /**
@@ -177,7 +268,8 @@ export function buildParseContext(src: string): ParseContext {
   }
   const tokens = ast.tokens ?? []
   const ignoreLines = buildIgnoreLines(ast.comments ?? [])
-  return { ast, tokens, ignoreLines }
+  const preCollected = collectAllTargets(src, ast, tokens, ignoreLines)
+  return { ast, tokens, ignoreLines, preCollected }
 }
 
 /**
