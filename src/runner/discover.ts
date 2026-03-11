@@ -115,17 +115,26 @@ async function createViteResolver(
   // Load Vue plugin if needed
   let plugins: PluginOption[] = []
   if (exts.has('.vue')) {
-    try {
-      const mod = await import(
-        /* @vite-ignore */ '@vitejs/plugin-vue' as string
-      )
-      const vue = (mod as { default?: unknown }).default ?? mod
-      plugins = typeof vue === 'function' ? [(vue as () => PluginOption)()] : []
-    } catch (err) {
-      const detail = err instanceof Error ? err.message : String(err)
-      log.warn(
-        `Unable to load @vitejs/plugin-vue; Vue SFC imports may fail to resolve (${detail})`,
-      )
+    const vueFiles = await fg(['**/*.vue'], {
+      cwd: rootAbs,
+      onlyFiles: true,
+      ignore: ['**/node_modules/**'],
+      deep: 5,
+    })
+    if (vueFiles.length > 0) {
+      try {
+        const mod = await import(
+          /* @vite-ignore */ '@vitejs/plugin-vue' as string
+        )
+        const vue = (mod as { default?: unknown }).default ?? mod
+        plugins =
+          typeof vue === 'function' ? [(vue as () => PluginOption)()] : []
+      } catch (err) {
+        const detail = err instanceof Error ? err.message : String(err)
+        log.warn(
+          `Unable to load @vitejs/plugin-vue; Vue SFC imports may fail to resolve (${detail})`,
+        )
+      }
     }
   }
 
