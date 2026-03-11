@@ -7,6 +7,7 @@ import {
   returnEmptyStr,
   returnEmptyArr,
 } from '../return-value.js'
+import { buildParseContext } from '../utils.js'
 
 // ---------------------------------------------------------------------------
 // returnToNull
@@ -284,5 +285,47 @@ describe('returnEmptyArr', () => {
     const src = `function f() { return }`
     const results = returnEmptyArr.apply(src)
     expect(results).toHaveLength(0)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// applyWithContext (shared behaviour)
+// ---------------------------------------------------------------------------
+
+describe('return-value mutator applyWithContext', () => {
+  it('produces same results as apply', () => {
+    const src = `function f() { return x }`
+    const ctx = buildParseContext(src)
+    expect(returnToNull.applyWithContext!(src, ctx)).toEqual(
+      returnToNull.apply(src),
+    )
+  })
+
+  it('respects disable comments via pre-built context', () => {
+    const src = `function f() {\n  // mutineer-disable-next-line\n  return x\n}`
+    const ctx = buildParseContext(src)
+    expect(returnToNull.applyWithContext!(src, ctx)).toHaveLength(0)
+  })
+
+  it('all return mutators produce same results via applyWithContext as apply', () => {
+    const src = `
+function f(x) {
+  if (x) return true
+  if (x > 0) return 42
+  if (x < 0) return 'hello'
+  return [1, 2]
+}
+`
+    const ctx = buildParseContext(src)
+    for (const mutator of [
+      returnToNull,
+      returnToUndefined,
+      returnFlipBool,
+      returnZero,
+      returnEmptyStr,
+      returnEmptyArr,
+    ]) {
+      expect(mutator.applyWithContext!(src, ctx)).toEqual(mutator.apply(src))
+    }
   })
 })

@@ -8,6 +8,7 @@
 
 import type { ASTMutator, MutationOutput } from './types.js'
 import { collectOperatorTargets } from './utils.js'
+import type { ParseContext } from './utils.js'
 
 /**
  * Factory to build an operator mutator using AST traversal and token analysis.
@@ -23,15 +24,31 @@ function makeOperatorMutator(
   fromOp: string,
   toOp: string,
 ): ASTMutator {
+  function targetsToOutputs(
+    src: string,
+    targets: ReturnType<typeof collectOperatorTargets>,
+  ): readonly MutationOutput[] {
+    return targets.map((target) => ({
+      line: target.line,
+      col: target.col1,
+      code: src.slice(0, target.start) + toOp + src.slice(target.end),
+    }))
+  }
+
   return {
     name,
     description,
     apply(src: string): readonly MutationOutput[] {
-      return collectOperatorTargets(src, fromOp).map((target) => ({
-        line: target.line,
-        col: target.col1,
-        code: src.slice(0, target.start) + toOp + src.slice(target.end),
-      }))
+      return targetsToOutputs(src, collectOperatorTargets(src, fromOp))
+    },
+    applyWithContext(
+      src: string,
+      ctx: ParseContext,
+    ): readonly MutationOutput[] {
+      return targetsToOutputs(
+        src,
+        ctx.preCollected.operatorTargets.get(fromOp) ?? [],
+      )
     },
   }
 }

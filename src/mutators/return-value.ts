@@ -14,6 +14,7 @@ import {
   parseSource,
   buildIgnoreLines,
 } from './utils.js'
+import type { ParseContext } from './utils.js'
 import type { ASTMutator, MutationOutput } from './types.js'
 
 /**
@@ -28,6 +29,39 @@ import type { ASTMutator, MutationOutput } from './types.js'
  * @param description - Human-readable description shown in reports
  * @param replacer - Returns the replacement source text, or null to skip
  */
+function collectReturnMutations(
+  src: string,
+  ast: t.File,
+  ignoreLines: Set<number>,
+  replacer: (node: t.Expression) => string | null,
+): MutationOutput[] {
+  const outputs: MutationOutput[] = []
+
+  traverse(ast, {
+    ReturnStatement(path) {
+      const node = path.node
+      if (!node.argument) return // bare return; — nothing to replace
+
+      const line = node.loc?.start.line
+      if (line === undefined) return
+      if (ignoreLines.has(line)) return
+
+      const replacement = replacer(node.argument)
+      if (replacement === null) return
+
+      const argStart = node.argument.start
+      const argEnd = node.argument.end
+      if (argStart == null || argEnd == null) return
+
+      const col = getVisualColumn(src, node.start ?? 0)
+      const code = src.slice(0, argStart) + replacement + src.slice(argEnd)
+      outputs.push({ line, col, code })
+    },
+  })
+
+  return outputs
+}
+
 function makeReturnMutator(
   name: string,
   description: string,
@@ -40,30 +74,20 @@ function makeReturnMutator(
       const ast = parseSource(src)
       const fileAst = ast as t.File & { comments?: t.Comment[] }
       const ignoreLines = buildIgnoreLines(fileAst.comments ?? [])
+      return collectReturnMutations(src, ast, ignoreLines, replacer)
+    },
+    applyWithContext(
+      src: string,
+      ctx: ParseContext,
+    ): readonly MutationOutput[] {
       const outputs: MutationOutput[] = []
-
-      traverse(ast, {
-        ReturnStatement(path) {
-          const node = path.node
-          if (!node.argument) return // bare return; — nothing to replace
-
-          const line = node.loc?.start.line
-          if (line === undefined) return
-          if (ignoreLines.has(line)) return
-
-          const replacement = replacer(node.argument)
-          if (replacement === null) return
-
-          const argStart = node.argument.start
-          const argEnd = node.argument.end
-          if (argStart == null || argEnd == null) return
-
-          const col = getVisualColumn(src, node.start ?? 0)
-          const code = src.slice(0, argStart) + replacement + src.slice(argEnd)
-          outputs.push({ line, col, code })
-        },
-      })
-
+      for (const info of ctx.preCollected.returnStatements) {
+        const replacement = replacer(info.argNode)
+        if (replacement === null) continue
+        const code =
+          src.slice(0, info.argStart) + replacement + src.slice(info.argEnd)
+        outputs.push({ line: info.line, col: info.col, code })
+      }
       return outputs
     },
   }

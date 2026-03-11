@@ -96,6 +96,7 @@ export async function executePool(opts: PoolExecutionOptions): Promise<void> {
 
   progress.start()
 
+  const fileCache = new Map<string, string>()
   let nextIdx = 0
 
   async function processTask(task: MutantTask): Promise<void> {
@@ -140,7 +141,12 @@ export async function executePool(opts: PoolExecutionOptions): Promise<void> {
     let mutatedSnippet: string | undefined
     if (status === 'escaped') {
       try {
-        const originalLines = fs.readFileSync(v.file, 'utf8').split('\n')
+        let fileContent = fileCache.get(v.file)
+        if (fileContent === undefined) {
+          fileContent = fs.readFileSync(v.file, 'utf8')
+          fileCache.set(v.file, fileContent)
+        }
+        const originalLines = fileContent.split('\n')
         const mutatedLines = v.code.split('\n')
         const lineIdx = v.line - 1
         const orig = originalLines[lineIdx]?.trim()

@@ -349,28 +349,30 @@ export async function autoDiscoverTargetsAndTests(
   }
 
   try {
-    for (const testAbs of tests) {
-      const seen = new Set<string>()
-      // prime with the test's own direct imports
-      const code = safeRead(testAbs)
-      if (!code) continue
+    await Promise.all(
+      tests.map(async (testAbs) => {
+        const seen = new Set<string>()
+        // prime with the test's own direct imports
+        const code = safeRead(testAbs)
+        if (!code) return
 
-      const firstHop: string[] = []
-      for (const spec of extractImportSpecs(code)) {
-        if (!spec) continue
-        const resolved = await resolve(spec, testAbs)
-        const next = path.isAbsolute(resolved)
-          ? resolved
-          : normalizePath(path.resolve(rootAbs, resolved))
-        if (!path.isAbsolute(next)) continue
-        firstHop.push(next)
-      }
+        const firstHop: string[] = []
+        for (const spec of extractImportSpecs(code)) {
+          if (!spec) continue
+          const resolved = await resolve(spec, testAbs)
+          const next = path.isAbsolute(resolved)
+            ? resolved
+            : normalizePath(path.resolve(rootAbs, resolved))
+          if (!path.isAbsolute(next)) continue
+          firstHop.push(next)
+        }
 
-      log.debug(`test ${testAbs} first-hop imports ${firstHop.length}`)
-      for (const abs of firstHop) {
-        await crawl(abs, 0, seen, testAbs)
-      }
-    }
+        log.debug(`test ${testAbs} first-hop imports ${firstHop.length}`)
+        for (const abs of firstHop) {
+          await crawl(abs, 0, seen, testAbs)
+        }
+      }),
+    )
 
     return { targets: Array.from(targets.values()), testMap, directTestMap }
   } finally {

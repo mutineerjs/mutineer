@@ -146,7 +146,7 @@ export function isBinaryOrLogical(
 /**
  * Internal token-like interface for AST token analysis.
  */
-interface TokenLike {
+export interface TokenLike {
   readonly value?: string
   readonly start: number
   readonly end: number
@@ -154,6 +154,166 @@ interface TokenLike {
     readonly start: { readonly line: number; readonly column: number }
     readonly end: { readonly line: number; readonly column: number }
   }
+}
+
+/**
+ * Location info for a single return statement argument, pre-collected
+ * during a single AST traversal so return-value mutators need no traversal.
+ */
+export interface ReturnStatementInfo {
+  readonly line: number
+  readonly col: number
+  readonly argStart: number
+  readonly argEnd: number
+  readonly argNode: t.Expression
+}
+
+/**
+ * All mutation targets pre-collected in a single traversal.
+ */
+export interface PreCollected {
+  readonly operatorTargets: Map<string, OperatorTarget[]>
+  readonly returnStatements: ReturnStatementInfo[]
+}
+
+/**
+ * Pre-parsed context for a source file.
+ * Allows sharing a single Babel parse across all mutators.
+ */
+export interface ParseContext {
+  readonly ast: t.File & { tokens?: TokenLike[]; comments?: t.Comment[] }
+  readonly tokens: readonly TokenLike[]
+  readonly ignoreLines: Set<number>
+  readonly preCollected: PreCollected
+}
+
+/**
+ * Single traversal that collects all operator targets and return statements.
+ * Eliminates per-mutator traversals when using ParseContext.
+ */
+export function collectAllTargets(
+  src: string,
+  ast: t.File & { tokens?: TokenLike[]; comments?: t.Comment[] },
+  tokens: readonly TokenLike[],
+  ignoreLines: Set<number>,
+): PreCollected {
+  const operatorTargets = new Map<string, OperatorTarget[]>()
+  const returnStatements: ReturnStatementInfo[] = []
+
+  function handleBinaryOrLogical(n: t.BinaryExpression | t.LogicalExpression) {
+    const nodeStart = n.start ?? 0
+    const nodeEnd = n.end ?? 0
+    const opValue = n.operator
+    const tok = tokens.find(
+      (tk) =>
+        tk.start >= nodeStart && tk.end <= nodeEnd && tk.value === opValue,
+    )
+    if (tok) {
+      const line = tok.loc.start.line
+      if (ignoreLines.has(line)) return
+      const visualCol = getVisualColumn(src, tok.start)
+      let arr = operatorTargets.get(opValue)
+      if (!arr) {
+        arr = []
+        operatorTargets.set(opValue, arr)
+      }
+      arr.push({
+        start: tok.start,
+        end: tok.end,
+        line,
+        col1: visualCol,
+        op: opValue,
+      })
+    }
+  }
+
+  traverse(ast, {
+    BinaryExpression(p) {
+      handleBinaryOrLogical(p.node)
+    },
+    LogicalExpression(p) {
+      handleBinaryOrLogical(p.node)
+    },
+    ReturnStatement(p) {
+      const node = p.node
+      if (!node.argument) return
+      const line = node.loc?.start.line
+      if (line === undefined) return
+      if (ignoreLines.has(line)) return
+      const argStart = node.argument.start
+      const argEnd = node.argument.end
+      if (argStart == null || argEnd == null) return
+      const col = getVisualColumn(src, node.start ?? 0)
+      returnStatements.push({
+        line,
+        col,
+        argStart,
+        argEnd,
+        argNode: node.argument,
+      })
+    },
+  })
+
+  return { operatorTargets, returnStatements }
+}
+
+/**
+ * Parse a source file once and build a reusable ParseContext.
+ * Pass this to mutators' applyWithContext to avoid redundant parses.
+ */
+export function buildParseContext(src: string): ParseContext {
+  const ast = parseSource(src) as t.File & {
+    tokens?: TokenLike[]
+    comments?: t.Comment[]
+  }
+  const tokens = ast.tokens ?? []
+  const ignoreLines = buildIgnoreLines(ast.comments ?? [])
+  const preCollected = collectAllTargets(src, ast, tokens, ignoreLines)
+  return { ast, tokens, ignoreLines, preCollected }
+}
+
+/**
+ * Collect operator targets from a pre-built ParseContext.
+ * Avoids re-parsing; use when processing multiple operators on the same source.
+ */
+export function collectOperatorTargetsFromContext(
+  src: string,
+  ctx: ParseContext,
+  opValue: string,
+): OperatorTarget[] {
+  const { ast, tokens, ignoreLines } = ctx
+  const out: OperatorTarget[] = []
+
+  traverse(ast, {
+    enter(p) {
+      if (!isBinaryOrLogical(p.node)) return
+      const n = p.node
+      if (n.operator !== opValue) return
+
+      const nodeStart = n.start ?? 0
+      const nodeEnd = n.end ?? 0
+      const tok = tokens.find(
+        (tk) =>
+          tk.start >= nodeStart && tk.end <= nodeEnd && tk.value === opValue,
+      )
+
+      if (tok) {
+        const line = tok.loc.start.line
+        if (ignoreLines.has(line)) return
+
+        const visualCol = getVisualColumn(src, tok.start)
+        out.push({
+          start: tok.start,
+          end: tok.end,
+          line,
+          col1: visualCol,
+          op: opValue,
+        })
+      }
+    },
+  })
+
+  return out
 }
 
 /**
@@ -169,48 +329,5 @@ export function collectOperatorTargets(
   src: string,
   opValue: string,
 ): OperatorTarget[] {
-  const ast = parseSource(src)
-  const fileAst = ast as t.File & {
-    tokens?: TokenLike[]
-    comments?: t.Comment[]
-  }
-  const tokens = fileAst.tokens ?? []
-  const comments = fileAst.comments ?? []
-
-  const out: OperatorTarget[] = []
-  const ignoreLines = buildIgnoreLines(comments)
-
-  traverse(ast, {
-    enter(p) {
-      if (!isBinaryOrLogical(p.node)) return
-      const n = p.node
-      if (n.operator !== opValue) return
-
-      // Find the exact operator token inside the node span
-      const nodeStart = n.start ?? 0
-      const nodeEnd = n.end ?? 0
-      const tok = tokens.find(
-        (tk) =>
-          tk.start >= nodeStart && tk.end <= nodeEnd && tk.value === opValue,
-      )
-
-      if (tok) {
-        // Convert Babel's character-based column to a visual column for accurate reporting
-        const line = tok.loc.start.line
-        if (ignoreLines.has(line)) return
-
-        const visualCol = getVisualColumn(src, tok.start)
-
-        out.push({
-          start: tok.start,
-          end: tok.end,
-          line,
-          col1: visualCol, // convert to 1-based
-          op: opValue,
-        })
-      }
-    },
-  })
-
-  return out
+  return collectOperatorTargetsFromContext(src, buildParseContext(src), opValue)
 }

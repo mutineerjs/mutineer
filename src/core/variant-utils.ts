@@ -1,4 +1,5 @@
 import { getRegistry } from '../mutators/registry.js'
+import { buildParseContext } from '../mutators/utils.js'
 import type { MutationVariant } from './types.js'
 import type { ASTMutator } from '../mutators/registry.js'
 
@@ -35,6 +36,7 @@ export function generateMutationVariants(
 
   const variants: MutationVariant[] = []
   const seen = new Set<string>()
+  const ctx = buildParseContext(code)
 
   for (const mutator of registry) {
     // Early termination if limit reached
@@ -42,7 +44,10 @@ export function generateMutationVariants(
       break
     }
 
-    for (const mutation of mutator.apply(code)) {
+    const mutations = mutator.applyWithContext
+      ? mutator.applyWithContext(code, ctx)
+      : mutator.apply(code)
+    for (const mutation of mutations) {
       // Skip unchanged code and duplicates in a single check
       if (!seen.has(mutation.code)) {
         seen.add(mutation.code)

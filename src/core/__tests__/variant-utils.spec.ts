@@ -1,5 +1,8 @@
-import { describe, it, expect } from 'vitest'
-import { generateMutationVariants, getFilteredRegistry } from '../variant-utils.js'
+import { describe, it, expect, vi } from 'vitest'
+import {
+  generateMutationVariants,
+  getFilteredRegistry,
+} from '../variant-utils.js'
 import type { ASTMutator } from '../../mutators/registry.js'
 
 function makeMutator(
@@ -90,6 +93,30 @@ describe('generateMutationVariants', () => {
     ])
     const result = generateMutationVariants([mutator], 'code', {})
     expect(result).toHaveLength(2)
+  })
+
+  it('calls applyWithContext instead of apply when available', () => {
+    const applyWithContext = vi
+      .fn()
+      .mockReturnValue([{ code: 'ctx_result', line: 1, col: 0 }])
+    const mutator: ASTMutator = {
+      name: 'm',
+      description: 'm',
+      apply: () => [{ code: 'apply_result', line: 1, col: 0 }],
+      applyWithContext,
+    }
+    const result = generateMutationVariants([mutator], 'const x = 1')
+    expect(applyWithContext).toHaveBeenCalledOnce()
+    expect(result[0].code).toBe('ctx_result')
+  })
+
+  it('falls back to apply when applyWithContext is absent', () => {
+    const apply = vi
+      .fn()
+      .mockReturnValue([{ code: 'apply_result', line: 1, col: 0 }])
+    const mutator: ASTMutator = { name: 'm', description: 'm', apply }
+    generateMutationVariants([mutator], 'const x = 1')
+    expect(apply).toHaveBeenCalledOnce()
   })
 })
 
