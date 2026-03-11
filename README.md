@@ -164,6 +164,46 @@ export default defineMutineerConfig({
 | `testPatterns`      | `string[]`           | Globs for test file discovery                    |
 | `extensions`        | `string[]`           | File extensions to consider                      |
 
+## Recommended Workflow
+
+Large repos can generate thousands of mutations. These strategies keep runs fast and incremental.
+
+### 1. PR-scoped runs (CI) — `--changed-with-deps`
+
+Run only on files changed in the branch plus their direct dependents:
+
+```bash
+mutineer run --changed-with-deps
+```
+
+- Tune the dependency graph depth with `dependencyDepth` in config (default: `1`)
+- Add `--per-test-coverage` to only run tests that cover the mutated line
+- Recommended `package.json` script:
+
+```json
+"mutineer:ci": "mutineer run --changed-with-deps --per-test-coverage"
+```
+
+### 2. Split configs by domain
+
+Create a `mutineer.config.ts` per domain and run selectively:
+
+```bash
+mutineer run -c src/api/mutineer.config.ts
+```
+
+Each config sets its own `source` glob and `minKillPercent`. Good for monorepos or large modular projects — domains can also be parallelized in CI.
+
+### 3. Combine filters to reduce scope
+
+- `--only-covered-lines` — skips lines not covered by any test (requires a coverage file)
+- `maxMutantsPerFile` — caps mutations per file as a safety valve
+- Combine for maximum focus:
+
+```bash
+mutineer run --changed-with-deps --only-covered-lines --per-test-coverage
+```
+
 ## File Support
 
 - TypeScript and JavaScript modules (`.ts`, `.js`, `.tsx`, `.jsx`)
