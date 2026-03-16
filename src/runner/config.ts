@@ -23,7 +23,7 @@ const log = createLogger('config')
 async function loadModule(filePath: string): Promise<unknown> {
   const moduleUrl = pathToFileURL(filePath).href
   const mod = await import(moduleUrl)
-  return mod.default ?? mod
+  return 'default' in mod ? mod.default : mod
 }
 
 /**
