@@ -24,11 +24,12 @@ Options (run):
   --runner <vitest|jest>    Test runner (default: vitest)
   --progress <bar|list|quiet>  Progress display (default: bar)
   --changed                 Mutate only git-changed files
-  --changed-with-deps       Mutate changed files + dependents
+  --changed-with-deps       Mutate changed files + their local dependencies
   --only-covered-lines      Mutate only lines covered by tests
   --per-test-coverage       Collect per-test coverage data
   --coverage-file <path>    Path to coverage JSON
   --min-kill-percent <n>    Minimum kill % threshold (0–100)
+  --timeout <ms>            Per-mutant test timeout in ms (default: 30000)
 
   --help, -h                Show this help
   --version, -V             Show version

@@ -40,4 +40,6 @@ export interface MutineerConfig {
    * Requires Vitest coverage with perTest support.
    */
   readonly perTestCoverage?: boolean
+  /** Per-mutant test timeout in milliseconds (default: 30000) */
+  readonly timeout?: number
 }

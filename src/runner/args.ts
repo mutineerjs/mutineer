@@ -22,6 +22,7 @@ export interface ParsedCliOptions {
   readonly progressMode: 'bar' | 'list' | 'quiet'
   readonly minKillPercent: number | undefined
   readonly runner: 'vitest' | 'jest'
+  readonly timeout: number | undefined
 }
 
 /**
@@ -105,6 +106,22 @@ export function validatePercent(
 }
 
 /**
+ * Validate a timeout value (must be a positive finite number).
+ */
+export function validatePositiveMs(
+  value: number | undefined,
+  source: string,
+): number | undefined {
+  if (value === undefined) return undefined
+  if (!Number.isFinite(value) || value <= 0) {
+    throw new Error(
+      `Invalid ${source}: expected a positive number (received ${value})`,
+    )
+  }
+  return value
+}
+
+/**
  * Parse concurrency from CLI args or use default.
  */
 export function parseConcurrency(args: readonly string[]): number {
@@ -170,6 +187,11 @@ export function parseCliOptions(
   )
   const minKillPercent = cliKillPercent ?? configKillPercent
 
+  const timeout = validatePositiveMs(
+    readNumberFlag(args, '--timeout'),
+    '--timeout',
+  )
+
   return {
     configPath,
     wantsChanged,
@@ -181,5 +203,6 @@ export function parseCliOptions(
     progressMode,
     minKillPercent,
     runner,
+    timeout,
   }
 }

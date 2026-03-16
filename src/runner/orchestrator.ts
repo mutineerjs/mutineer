@@ -58,7 +58,7 @@ export async function runOrchestrator(cliArgs: string[], cwd: string) {
   )({
     cwd,
     concurrency: opts.concurrency,
-    timeoutMs: MUTANT_TIMEOUT_MS,
+    timeoutMs: opts.timeout ?? cfg.timeout ?? MUTANT_TIMEOUT_MS,
     config: cfg,
     cliArgs,
   })
@@ -115,6 +115,28 @@ export async function runOrchestrator(cliArgs: string[], cwd: string) {
     }
   }
   const baselineTests = Array.from(allTestFiles)
+
+  if (opts.wantsChangedWithDeps) {
+    let uncoveredCount = 0
+    for (const target of targets) {
+      const absFile = normalizePath(
+        path.isAbsolute(getTargetFile(target))
+          ? getTargetFile(target)
+          : path.join(cwd, getTargetFile(target)),
+      )
+      if (
+        changedAbs?.has(absFile) &&
+        !testMap.get(normalizePath(absFile))?.size
+      ) {
+        uncoveredCount++
+      }
+    }
+    if (uncoveredCount > 0) {
+      log.info(
+        `${uncoveredCount} target(s) from --changed-with-deps have no covering tests and will be skipped`,
+      )
+    }
+  }
 
   if (!baselineTests.length) {
     log.info('No tests found for targets. Exiting.')
