@@ -137,6 +137,27 @@ describe('Vitest adapter', () => {
     expect(args.join(' ')).toContain('--coverage.perTest=true')
   })
 
+  it('disables coverage thresholds in baseline-with-coverage to prevent threshold failures', async () => {
+    const adapter = makeAdapter({ cliArgs: [] })
+    spawnMock.mockImplementationOnce(() => ({
+      on: (evt: string, cb: (...a: any[]) => void) => {
+        if (evt === 'exit') cb(0)
+      },
+    }))
+
+    await adapter.runBaseline(['test-a'], {
+      collectCoverage: true,
+      perTestCoverage: false,
+    })
+
+    const args = spawnMock.mock.calls[0][1] as string[]
+    const argStr = args.join(' ')
+    expect(argStr).toContain('--coverage.thresholds.lines=0')
+    expect(argStr).toContain('--coverage.thresholds.functions=0')
+    expect(argStr).toContain('--coverage.thresholds.branches=0')
+    expect(argStr).toContain('--coverage.thresholds.statements=0')
+  })
+
   it('detects coverage config from vitest config file', async () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'mutineer-vitest-'))
     const cfgPath = path.join(tmp, 'vitest.config.ts')

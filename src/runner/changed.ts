@@ -1,7 +1,6 @@
 import { spawnSync } from 'node:child_process'
 import path from 'node:path'
 import fs from 'node:fs'
-import { createRequire } from 'node:module'
 import { normalizePath } from '../utils/normalizePath.js'
 import { createLogger } from '../utils/logger.js'
 
@@ -67,60 +66,33 @@ function resolveLocalDependencies(
       const dep = match[1]
       if (!dep.startsWith('.')) continue
 
-      try {
-        const require = createRequire(file)
-        let resolvedPath: string | undefined
+      const dir = path.dirname(file)
+      const base = dep.replace(/\.(js|ts|mjs|cjs|vue)$/, '')
+      const candidates = [dep, ...SUPPORTED_EXTENSIONS.map((ext) => base + ext)]
 
-        // Try direct resolution first
-        try {
-          resolvedPath = require.resolve(dep)
-        } catch {
-          // Try different extensions if direct resolution fails
-          for (const ext of SUPPORTED_EXTENSIONS) {
-            try {
-              // Try replacing existing extension
-              resolvedPath = require.resolve(dep.replace(/\.(js|ts|vue)$/, ext))
-              break
-            } catch {
-              try {
-                // Try adding extension
-                resolvedPath = require.resolve(dep + ext)
-                break
-              } catch {
-                continue
-              }
-            }
-          }
+      let resolvedPath: string | undefined
+      for (const candidate of candidates) {
+        const abs = normalizePath(path.resolve(dir, candidate))
+        if (abs.includes('node_modules') || !abs.startsWith(cwd)) continue
+        if (fs.existsSync(abs)) {
+          resolvedPath = abs
+          break
         }
-
-        if (!resolvedPath) {
-          log.warn(`Could not resolve path for dependency ${dep} in ${file}`)
-          continue
-        }
-
-        // Skip anything outside the repo/cwd, node_modules, tests, or missing
-        if (
-          !resolvedPath.startsWith(cwd) ||
-          resolvedPath.includes('node_modules')
-        )
-          continue
-        if (TEST_FILE_PATTERN.test(resolvedPath)) continue
-        if (!fs.existsSync(resolvedPath)) continue
-
-        deps.push(normalizePath(resolvedPath))
-        deps.push(
-          ...resolveLocalDependencies(
-            resolvedPath,
-            cwd,
-            seen,
-            maxDepth,
-            currentDepth + 1,
-          ),
-        )
-      } catch (err) {
-        log.warn(`Failed to resolve dependency ${dep} in ${file}: ${err}`)
-        continue
       }
+
+      if (!resolvedPath) continue
+      if (TEST_FILE_PATTERN.test(resolvedPath)) continue
+
+      deps.push(resolvedPath)
+      deps.push(
+        ...resolveLocalDependencies(
+          resolvedPath,
+          cwd,
+          seen,
+          maxDepth,
+          currentDepth + 1,
+        ),
+      )
     }
   }
 
