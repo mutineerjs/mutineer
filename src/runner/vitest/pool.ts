@@ -404,6 +404,7 @@ export class VitestPool {
   }
 
   private releaseWorker(worker: VitestWorker): void {
+    if (!worker.isReady()) return
     // If someone is waiting, give them the worker directly
     const waiting = this.waitingTasks.shift()
     if (waiting) {
@@ -412,9 +413,7 @@ export class VitestPool {
     }
 
     // Otherwise return to the pool
-    if (worker.isReady()) {
-      this.availableWorkers.push(worker)
-    }
+    this.availableWorkers.push(worker)
   }
 
   async run(mutant: MutantPayload, tests: string[]): Promise<MutantRunSummary> {
