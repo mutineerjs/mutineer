@@ -22,6 +22,7 @@ function makeOpts(overrides: Partial<ParsedCliOptions> = {}): ParsedCliOptions {
     progressMode: 'bar',
     minKillPercent: undefined,
     runner: 'vitest',
+    timeout: undefined,
     ...overrides,
   }
 }
@@ -93,7 +94,9 @@ describe('resolveCoverageConfig', () => {
 
   it('sets exitCode when onlyCoveredLines is set but no coverage provider', async () => {
     const opts = makeOpts({ wantsOnlyCoveredLines: true })
-    const adapter = makeAdapter({ hasCoverageProvider: vi.fn().mockReturnValue(false) })
+    const adapter = makeAdapter({
+      hasCoverageProvider: vi.fn().mockReturnValue(false),
+    })
     await resolveCoverageConfig(opts, {}, adapter, [])
     expect(process.exitCode).toBe(1)
   })
@@ -145,9 +148,7 @@ describe('loadCoverageAfterBaseline', () => {
   let tmpDir: string
 
   beforeEach(async () => {
-    tmpDir = await fs.mkdtemp(
-      path.join(os.tmpdir(), 'mutineer-cov-resolver-'),
-    )
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'mutineer-cov-resolver-'))
   })
 
   afterEach(async () => {
@@ -172,7 +173,9 @@ describe('loadCoverageAfterBaseline', () => {
     const coverageJson = {
       '/src/foo.ts': {
         path: '/src/foo.ts',
-        statementMap: { '0': { start: { line: 1, column: 0 }, end: { line: 1, column: 10 } } },
+        statementMap: {
+          '0': { start: { line: 1, column: 0 }, end: { line: 1, column: 10 } },
+        },
         s: { '0': 1 },
       },
     }

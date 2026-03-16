@@ -4,6 +4,7 @@ import {
   readNumberFlag,
   readStringFlag,
   validatePercent,
+  validatePositiveMs,
   parseConcurrency,
   parseProgressMode,
   parseCliOptions,
@@ -221,10 +222,7 @@ describe('parseCliOptions', () => {
   })
 
   it('parses --coverage-file flag', () => {
-    const opts = parseCliOptions(
-      ['--coverage-file', 'coverage.json'],
-      emptyCfg,
-    )
+    const opts = parseCliOptions(['--coverage-file', 'coverage.json'], emptyCfg)
     expect(opts.coverageFilePath).toBe('coverage.json')
   })
 
@@ -292,13 +290,81 @@ describe('parseCliOptions', () => {
       parseCliOptions(['--min-kill-percent', '150'], emptyCfg),
     ).toThrow('expected value between 0 and 100')
   })
+
+  it('parses --timeout flag', () => {
+    const opts = parseCliOptions(['--timeout', '5000'], emptyCfg)
+    expect(opts.timeout).toBe(5000)
+  })
+
+  it('parses --timeout with = syntax', () => {
+    const opts = parseCliOptions(['--timeout=5000'], emptyCfg)
+    expect(opts.timeout).toBe(5000)
+  })
+
+  it('returns undefined timeout when flag absent', () => {
+    const opts = parseCliOptions([], emptyCfg)
+    expect(opts.timeout).toBeUndefined()
+  })
+
+  it('config timeout does not affect opts.timeout (resolved in orchestrator)', () => {
+    const opts = parseCliOptions([], { timeout: 10000 } as any)
+    expect(opts.timeout).toBeUndefined()
+  })
+
+  it('rejects --timeout 0', () => {
+    expect(() => parseCliOptions(['--timeout', '0'], emptyCfg)).toThrow(
+      'expected a positive number',
+    )
+  })
+
+  it('rejects --timeout -1', () => {
+    expect(() => parseCliOptions(['--timeout', '-1'], emptyCfg)).toThrow(
+      'expected a positive number',
+    )
+  })
+
+  it('rejects --timeout abc', () => {
+    expect(() => parseCliOptions(['--timeout', 'abc'], emptyCfg)).toThrow(
+      'Invalid value for --timeout: abc',
+    )
+  })
+})
+
+describe('validatePositiveMs', () => {
+  it('returns undefined for undefined', () => {
+    expect(validatePositiveMs(undefined, 'test')).toBeUndefined()
+  })
+
+  it('returns the value for a positive number', () => {
+    expect(validatePositiveMs(5000, '--timeout')).toBe(5000)
+    expect(validatePositiveMs(1, '--timeout')).toBe(1)
+  })
+
+  it('throws for zero', () => {
+    expect(() => validatePositiveMs(0, '--timeout')).toThrow(
+      'Invalid --timeout: expected a positive number (received 0)',
+    )
+  })
+
+  it('throws for negative values', () => {
+    expect(() => validatePositiveMs(-1, '--timeout')).toThrow(
+      'Invalid --timeout: expected a positive number (received -1)',
+    )
+  })
+
+  it('throws for non-finite values', () => {
+    expect(() => validatePositiveMs(Infinity, '--timeout')).toThrow(
+      'Invalid --timeout: expected a positive number',
+    )
+    expect(() => validatePositiveMs(NaN, '--timeout')).toThrow(
+      'Invalid --timeout: expected a positive number',
+    )
+  })
 })
 
 describe('extractConfigPath', () => {
   it('extracts --config with separate value', () => {
-    expect(extractConfigPath(['--config', 'my.config.ts'])).toBe(
-      'my.config.ts',
-    )
+    expect(extractConfigPath(['--config', 'my.config.ts'])).toBe('my.config.ts')
   })
 
   it('extracts --config with = syntax', () => {
@@ -314,7 +380,9 @@ describe('extractConfigPath', () => {
   })
 
   it('returns undefined when no config flag is present', () => {
-    expect(extractConfigPath(['--changed', '--runner', 'vitest'])).toBeUndefined()
+    expect(
+      extractConfigPath(['--changed', '--runner', 'vitest']),
+    ).toBeUndefined()
   })
 
   it('returns undefined for empty args', () => {

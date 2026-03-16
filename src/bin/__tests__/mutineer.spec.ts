@@ -30,6 +30,10 @@ describe('HELP_TEXT', () => {
     expect(HELP_TEXT).toContain('run')
     expect(HELP_TEXT).toContain('clean')
   })
+
+  it('--changed-with-deps description mentions local dependencies', () => {
+    expect(HELP_TEXT).toContain('local dependencies')
+  })
 })
 
 describe('getVersion()', () => {
