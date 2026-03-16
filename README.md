@@ -19,10 +19,10 @@ Built for **Vitest** with first-class **Jest** support. Other test runners can b
 
 1. **Baseline** -- runs your test suite to make sure everything passes before mutating
 2. **Mutate** -- applies AST-safe operator replacements to your source files (not your tests)
-3. **Test** -- re-runs only the tests that import the mutated file, using a fast file-swap mechanism
+3. **Test** -- re-runs only the tests that import the mutated file, using temp files in `__mutineer__` dirs loaded via Vite plugin / Jest resolver
 4. **Report** -- prints a summary with kill rate, escaped mutants, and per-file breakdowns
 
-Mutations are applied using Babel AST analysis, so operators inside strings and comments are never touched. Mutated code is injected at runtime via Vite plugins (Vitest) or custom resolvers (Jest) -- no files on disk are modified.
+Mutations are applied using Babel AST analysis, so operators inside strings and comments are never touched. Mutated code is written to a temporary `__mutineer__` directory next to each source file, then loaded at runtime via Vite plugins (Vitest) or custom resolvers (Jest).
 
 ## Supported Mutations (WIP)
 
