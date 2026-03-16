@@ -42,4 +42,6 @@ export interface MutineerConfig {
   readonly perTestCoverage?: boolean
   /** Per-mutant test timeout in milliseconds (default: 30000) */
   readonly timeout?: number
+  /** Output report format: 'text' (default) or 'json' (writes mutineer-report.json) */
+  readonly report?: 'text' | 'json'
 }

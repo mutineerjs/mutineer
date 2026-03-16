@@ -23,6 +23,7 @@ export interface ParsedCliOptions {
   readonly minKillPercent: number | undefined
   readonly runner: 'vitest' | 'jest'
   readonly timeout: number | undefined
+  readonly reportFormat: 'text' | 'json'
 }
 
 /**
@@ -192,6 +193,10 @@ export function parseCliOptions(
     '--timeout',
   )
 
+  const reportFlag = readStringFlag(args, '--report')
+  const reportFormat: 'text' | 'json' =
+    reportFlag === 'json' || cfg.report === 'json' ? 'json' : 'text'
+
   return {
     configPath,
     wantsChanged,
@@ -204,5 +209,6 @@ export function parseCliOptions(
     minKillPercent,
     runner,
     timeout,
+    reportFormat,
   }
 }

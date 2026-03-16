@@ -23,6 +23,7 @@ function makeOpts(overrides: Partial<ParsedCliOptions> = {}): ParsedCliOptions {
     minKillPercent: undefined,
     runner: 'vitest',
     timeout: undefined,
+    reportFormat: 'text',
     ...overrides,
   }
 }

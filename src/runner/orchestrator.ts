@@ -194,6 +194,7 @@ export async function runOrchestrator(cliArgs: string[], cwd: string) {
     concurrency: opts.concurrency,
     progressMode: opts.progressMode,
     minKillPercent: opts.minKillPercent,
+    reportFormat: opts.reportFormat,
     cwd,
   })
 }
