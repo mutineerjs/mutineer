@@ -62,6 +62,46 @@ beforeEach(() => {
   )
 })
 
+describe('runOrchestrator discovery logging', () => {
+  it('logs "Discovering tests..." before calling autoDiscoverTargetsAndTests', async () => {
+    vi.mocked(loadMutineerConfig).mockResolvedValue({})
+    const consoleSpy = vi.spyOn(console, 'log')
+
+    await runOrchestrator([], '/cwd')
+
+    const calls = consoleSpy.mock.calls.map((c) => c[0])
+    const discoveringIdx = calls.findIndex((m) => m === 'Discovering tests...')
+    expect(discoveringIdx).toBeGreaterThanOrEqual(0)
+  })
+
+  it('passes an onProgress callback to autoDiscoverTargetsAndTests', async () => {
+    vi.mocked(loadMutineerConfig).mockResolvedValue({})
+
+    await runOrchestrator([], '/cwd')
+
+    const [, , onProgress] = vi.mocked(autoDiscoverTargetsAndTests).mock
+      .calls[0]
+    expect(typeof onProgress).toBe('function')
+  })
+
+  it('logs progress messages emitted by autoDiscoverTargetsAndTests', async () => {
+    vi.mocked(loadMutineerConfig).mockResolvedValue({})
+    vi.mocked(autoDiscoverTargetsAndTests).mockImplementationOnce(
+      async (_root, _cfg, onProgress) => {
+        onProgress?.('Discovery complete: 3 source file(s), 2 test file(s)')
+        return { targets: [], testMap: new Map(), directTestMap: new Map() }
+      },
+    )
+    const consoleSpy = vi.spyOn(console, 'log')
+
+    await runOrchestrator([], '/cwd')
+
+    expect(consoleSpy).toHaveBeenCalledWith(
+      'Discovery complete: 3 source file(s), 2 test file(s)',
+    )
+  })
+})
+
 describe('runOrchestrator --changed-with-deps diagnostic', () => {
   it('logs uncovered targets when wantsChangedWithDeps is true', async () => {
     const cfg: MutineerConfig = {}

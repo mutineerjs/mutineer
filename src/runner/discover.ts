@@ -254,6 +254,7 @@ async function createResolver(
 export async function autoDiscoverTargetsAndTests(
   root: string,
   cfg: MutineerConfig,
+  onProgress?: (msg: string) => void,
 ): Promise<DiscoveryResult> {
   const rootAbs = path.resolve(root)
   const sourceRoots = toArray(cfg.source ?? 'src').map((s) =>
@@ -279,6 +280,7 @@ export async function autoDiscoverTargetsAndTests(
   if (!tests.length)
     return { targets: [], testMap: new Map(), directTestMap: new Map() }
   const testSet = new Set(tests.map((t) => normalizePath(t)))
+  onProgress?.(`Found ${tests.length} test file(s), resolving imports...`)
 
   // 2) Create resolver (Vite if available, otherwise Node-based fallback)
   const { resolve, cleanup } = await createResolver(rootAbs, exts)
@@ -383,6 +385,9 @@ export async function autoDiscoverTargetsAndTests(
       }),
     )
 
+    onProgress?.(
+      `Discovery complete: ${targets.size} source file(s), ${tests.length} test file(s)`,
+    )
     return { targets: Array.from(targets.values()), testMap, directTestMap }
   } finally {
     await cleanup()
