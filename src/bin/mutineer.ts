@@ -30,6 +30,7 @@ Options (run):
   --coverage-file <path>    Path to coverage JSON
   --min-kill-percent <n>    Minimum kill % threshold (0–100)
   --timeout <ms>            Per-mutant test timeout in ms (default: 30000)
+  --report <text|json>      Output format: text (default) or json (writes mutineer-report.json)
 
   --help, -h                Show this help
   --version, -V             Show version

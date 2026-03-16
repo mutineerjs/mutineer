@@ -153,6 +153,56 @@ export function printSummary(
   console.log(chalk.dim(SEPARATOR) + '\n')
 }
 
+export interface JsonMutant {
+  readonly file: string
+  readonly line: number
+  readonly col: number
+  readonly mutator: string
+  readonly status: string
+  readonly originalSnippet?: string
+  readonly mutatedSnippet?: string
+  readonly coveringTests?: readonly string[]
+}
+
+export interface JsonReport {
+  readonly schemaVersion: 1
+  readonly timestamp: string
+  readonly durationMs?: number
+  readonly summary: Summary
+  readonly mutants: JsonMutant[]
+}
+
+export function buildJsonReport(
+  summary: Summary,
+  cache: Readonly<Record<string, MutantCacheEntry>>,
+  durationMs?: number,
+): JsonReport {
+  const mutants: JsonMutant[] = Object.values(cache).map((entry) => ({
+    file: entry.file,
+    line: entry.line,
+    col: entry.col,
+    mutator: entry.mutator,
+    status: entry.status,
+    ...(entry.originalSnippet !== undefined && {
+      originalSnippet: entry.originalSnippet,
+    }),
+    ...(entry.mutatedSnippet !== undefined && {
+      mutatedSnippet: entry.mutatedSnippet,
+    }),
+    ...(entry.coveringTests !== undefined && {
+      coveringTests: entry.coveringTests,
+    }),
+  }))
+
+  return {
+    schemaVersion: 1,
+    timestamp: new Date().toISOString(),
+    ...(durationMs !== undefined && { durationMs }),
+    summary,
+    mutants,
+  }
+}
+
 export function summarise(
   cache: Readonly<Record<string, MutantCacheEntry>>,
 ): Summary {
