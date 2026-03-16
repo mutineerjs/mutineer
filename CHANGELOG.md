@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.6.0](https://github.com/mutineerjs/mutineer/compare/v0.5.1...v0.6.0) (2026-03-16)
+
+
+### Added
+
+* added help flag ([#35](https://github.com/mutineerjs/mutineer/issues/35)) ([6f8fec0](https://github.com/mutineerjs/mutineer/commit/6f8fec0ad280c27b29863be4aebc31cd7d472acb))
+* added timeout flag ([#37](https://github.com/mutineerjs/mutineer/issues/37)) ([20e43be](https://github.com/mutineerjs/mutineer/commit/20e43be39c280f51a07c23d1ffb0b91a4288b910))
+
+
+### Fixed
+
+* changed files bug ([#39](https://github.com/mutineerjs/mutineer/issues/39)) ([a66f381](https://github.com/mutineerjs/mutineer/commit/a66f381522a4ee2caf3c4a912c4a94cc5312171a))
+* config.ts default export ([#34](https://github.com/mutineerjs/mutineer/issues/34)) ([e2f199f](https://github.com/mutineerjs/mutineer/commit/e2f199fbc342d9c8b7a3fb701dbd71a0e09e9f14))
+* fixed worker being reused when not read ([#38](https://github.com/mutineerjs/mutineer/issues/38)) ([7ad1a92](https://github.com/mutineerjs/mutineer/commit/7ad1a92fc0b55c34b9cc0afa213b5f4f2d35300c))
+
 ## [0.5.1](https://github.com/mutineerjs/mutineer/compare/v0.5.0...v0.5.1) (2026-03-11)
 
 
