@@ -35,11 +35,13 @@ import { executePool } from './pool-executor.js'
 const log = createLogger('orchestrator')
 
 // Per-mutant test timeout (ms). Can be overridden with env MUTINEER_MUTANT_TIMEOUT_MS
-const MUTANT_TIMEOUT_MS = (() => {
-  const raw = process.env.MUTINEER_MUTANT_TIMEOUT_MS
+export function parseMutantTimeoutMs(raw: string | undefined): number {
   const n = raw ? Number(raw) : NaN
   return Number.isFinite(n) && n > 0 ? n : 30_000
-})()
+}
+const MUTANT_TIMEOUT_MS = parseMutantTimeoutMs(
+  process.env.MUTINEER_MUTANT_TIMEOUT_MS,
+)
 
 // Re-export readMutantCache for external use
 export { readMutantCache } from './cache.js'
@@ -139,7 +141,10 @@ export async function runOrchestrator(cliArgs: string[], cwd: string) {
   }
 
   if (!baselineTests.length) {
-    log.info('No tests found for targets. Exiting.')
+    log.error(
+      'No tests found for the selected targets. Ensure your source files are covered by at least one test file.',
+    )
+    process.exitCode = 1
     return
   }
 

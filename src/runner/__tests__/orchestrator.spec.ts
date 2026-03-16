@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import type { MutineerConfig } from '../../types/config.js'
 
 // Mock all heavy dependencies before importing orchestrator
@@ -37,7 +37,7 @@ vi.mock('../changed.js', () => ({
   listChangedFiles: vi.fn().mockReturnValue([]),
 }))
 
-import { runOrchestrator } from '../orchestrator.js'
+import { runOrchestrator, parseMutantTimeoutMs } from '../orchestrator.js'
 import { loadMutineerConfig } from '../config.js'
 import { createVitestAdapter, type VitestAdapter } from '../vitest/index.js'
 import { autoDiscoverTargetsAndTests } from '../discover.js'
@@ -60,6 +60,83 @@ beforeEach(() => {
   vi.mocked(createVitestAdapter).mockReturnValue(
     mockAdapter as unknown as VitestAdapter,
   )
+})
+
+describe('parseMutantTimeoutMs', () => {
+  it('returns the parsed value for a valid positive number', () => {
+    expect(parseMutantTimeoutMs('5000')).toBe(5000)
+  })
+
+  it('returns 30_000 for undefined', () => {
+    expect(parseMutantTimeoutMs(undefined)).toBe(30_000)
+  })
+
+  it('returns 30_000 for zero (kills tightenGT: n>=0 would return 0)', () => {
+    expect(parseMutantTimeoutMs('0')).toBe(30_000)
+  })
+
+  it('returns 30_000 for Infinity (kills andToOr: || would return Infinity)', () => {
+    expect(parseMutantTimeoutMs('Infinity')).toBe(30_000)
+  })
+
+  it('returns 30_000 for negative values', () => {
+    expect(parseMutantTimeoutMs('-1')).toBe(30_000)
+  })
+
+  it('returns 30_000 for non-numeric strings', () => {
+    expect(parseMutantTimeoutMs('abc')).toBe(30_000)
+  })
+})
+
+describe('runOrchestrator no tests found', () => {
+  afterEach(() => {
+    process.exitCode = undefined
+  })
+
+  it('sets exitCode=1 when no tests are found for targets', async () => {
+    process.exitCode = undefined
+    vi.mocked(loadMutineerConfig).mockResolvedValue({})
+    vi.mocked(autoDiscoverTargetsAndTests).mockResolvedValue({
+      targets: [],
+      testMap: new Map(),
+      directTestMap: new Map(),
+    })
+
+    await runOrchestrator([], '/cwd')
+
+    expect(process.exitCode).toBe(1)
+  })
+
+  it('logs error message when no tests are found for targets', async () => {
+    process.exitCode = undefined
+    vi.mocked(loadMutineerConfig).mockResolvedValue({})
+    vi.mocked(autoDiscoverTargetsAndTests).mockResolvedValue({
+      targets: [],
+      testMap: new Map(),
+      directTestMap: new Map(),
+    })
+
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    await runOrchestrator([], '/cwd')
+
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining('No tests found for the selected targets'),
+    )
+  })
+
+  it('does not run baseline when no tests are found', async () => {
+    process.exitCode = undefined
+    vi.mocked(loadMutineerConfig).mockResolvedValue({})
+    vi.mocked(autoDiscoverTargetsAndTests).mockResolvedValue({
+      targets: [],
+      testMap: new Map(),
+      directTestMap: new Map(),
+    })
+
+    await runOrchestrator([], '/cwd')
+
+    expect(mockAdapter.runBaseline).not.toHaveBeenCalled()
+  })
 })
 
 describe('runOrchestrator --changed-with-deps diagnostic', () => {
