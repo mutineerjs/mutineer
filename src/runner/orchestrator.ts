@@ -94,7 +94,10 @@ export async function runOrchestrator(cliArgs: string[], cwd: string) {
 
   // 4. Discover targets and tests
   const cache = await readMutantCache(cwd)
-  const discovered = await autoDiscoverTargetsAndTests(cwd, cfg)
+  log.info('Discovering tests...')
+  const discovered = await autoDiscoverTargetsAndTests(cwd, cfg, (msg) =>
+    log.info(msg),
+  )
   const { testMap, directTestMap } = discovered
 
   const targets: MutateTarget[] = cfg.targets?.length

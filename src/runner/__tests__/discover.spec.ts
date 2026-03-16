@@ -152,6 +152,35 @@ describe('autoDiscoverTargetsAndTests', () => {
     }
   })
 
+  it('calls onProgress at least twice with informational messages', async () => {
+    const tmpDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mutineer-discover-progress-'),
+    )
+    const srcDir = path.join(tmpDir, 'src')
+    const moduleFile = path.join(srcDir, 'foo.ts')
+    const testFile = path.join(srcDir, 'foo.test.ts')
+
+    await fs.mkdir(srcDir, { recursive: true })
+    await fs.writeFile(moduleFile, 'export const foo = 1\n', 'utf8')
+    const importLine = ['im', 'port { foo } from "./foo"'].join('')
+    await fs.writeFile(testFile, `${importLine}\nconsole.log(foo)\n`, 'utf8')
+
+    const messages: string[] = []
+
+    try {
+      await autoDiscoverTargetsAndTests(
+        tmpDir,
+        { testPatterns: ['**/*.test.ts'] },
+        (msg) => messages.push(msg),
+      )
+      expect(messages.length).toBeGreaterThanOrEqual(2)
+      expect(messages.some((m) => m.includes('test file'))).toBe(true)
+      expect(messages.some((m) => m.includes('Discovery complete'))).toBe(true)
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true })
+    }
+  })
+
   it('ignores test files when collecting mutate targets', async () => {
     const tmpDir = await fs.mkdtemp(
       path.join(os.tmpdir(), 'mutineer-discover-'),
