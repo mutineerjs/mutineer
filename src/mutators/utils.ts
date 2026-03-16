@@ -174,6 +174,8 @@ export interface ReturnStatementInfo {
 export interface PreCollected {
   readonly operatorTargets: Map<string, OperatorTarget[]>
   readonly returnStatements: ReturnStatementInfo[]
+  readonly updateTargets: Map<string, OperatorTarget[]>
+  readonly assignmentTargets: Map<string, OperatorTarget[]>
 }
 
 /**
@@ -199,6 +201,8 @@ export function collectAllTargets(
 ): PreCollected {
   const operatorTargets = new Map<string, OperatorTarget[]>()
   const returnStatements: ReturnStatementInfo[] = []
+  const updateTargets = new Map<string, OperatorTarget[]>()
+  const assignmentTargets = new Map<string, OperatorTarget[]>()
 
   function handleBinaryOrLogical(n: t.BinaryExpression | t.LogicalExpression) {
     const nodeStart = n.start ?? 0
@@ -227,12 +231,73 @@ export function collectAllTargets(
     }
   }
 
+  function handleUpdate(n: t.UpdateExpression) {
+    const nodeStart = n.start ?? 0
+    const nodeEnd = n.end ?? 0
+    const opValue = n.operator
+    const tok = tokens.find(
+      (tk) =>
+        tk.start >= nodeStart && tk.end <= nodeEnd && tk.value === opValue,
+    )
+    if (tok) {
+      const line = tok.loc.start.line
+      if (ignoreLines.has(line)) return
+      const visualCol = getVisualColumn(src, tok.start)
+      const mapKey = (n.prefix ? 'pre' : 'post') + opValue
+      let arr = updateTargets.get(mapKey)
+      if (!arr) {
+        arr = []
+        updateTargets.set(mapKey, arr)
+      }
+      arr.push({
+        start: tok.start,
+        end: tok.end,
+        line,
+        col1: visualCol,
+        op: opValue,
+      })
+    }
+  }
+
+  function handleAssignment(n: t.AssignmentExpression) {
+    const nodeStart = n.start ?? 0
+    const nodeEnd = n.end ?? 0
+    const opValue = n.operator
+    const tok = tokens.find(
+      (tk) =>
+        tk.start >= nodeStart && tk.end <= nodeEnd && tk.value === opValue,
+    )
+    if (tok) {
+      const line = tok.loc.start.line
+      if (ignoreLines.has(line)) return
+      const visualCol = getVisualColumn(src, tok.start)
+      let arr = assignmentTargets.get(opValue)
+      if (!arr) {
+        arr = []
+        assignmentTargets.set(opValue, arr)
+      }
+      arr.push({
+        start: tok.start,
+        end: tok.end,
+        line,
+        col1: visualCol,
+        op: opValue,
+      })
+    }
+  }
+
   traverse(ast, {
     BinaryExpression(p) {
       handleBinaryOrLogical(p.node)
     },
     LogicalExpression(p) {
       handleBinaryOrLogical(p.node)
+    },
+    UpdateExpression(p) {
+      handleUpdate(p.node)
+    },
+    AssignmentExpression(p) {
+      handleAssignment(p.node)
     },
     ReturnStatement(p) {
       const node = p.node
@@ -254,7 +319,7 @@ export function collectAllTargets(
     },
   })
 
-  return { operatorTargets, returnStatements }
+  return { operatorTargets, returnStatements, updateTargets, assignmentTargets }
 }
 
 /**
