@@ -166,14 +166,109 @@ describe('listChangedFiles', () => {
       return { status: 0, stdout: '' }
     })
 
-    // File with imports - the import resolution will fail (no real files)
-    // but it exercises the parsing code paths
     readFileSyncMock.mockReturnValue(
       'import { bar } from "./bar"\nexport { baz } from "./baz"\nconst x = require("./qux")',
     )
+    existsSyncMock.mockImplementation((p: string) => {
+      // Changed file and .ts variants of deps exist
+      return [
+        '/repo/src/foo.ts',
+        '/repo/src/bar.ts',
+        '/repo/src/baz.ts',
+        '/repo/src/qux.ts',
+      ].includes(p)
+    })
 
     const result = listChangedFiles('/repo', { includeDeps: true })
     expect(result).toContain('/repo/src/foo.ts')
+    expect(result).toContain('/repo/src/bar.ts')
+    expect(result).toContain('/repo/src/baz.ts')
+    expect(result).toContain('/repo/src/qux.ts')
+  })
+
+  it('resolves dep with .ts extension when imported without extension', () => {
+    spawnSyncMock.mockImplementation((_cmd: string, args: string[]) => {
+      if (args.includes('--show-toplevel'))
+        return { status: 0, stdout: '/repo\n' }
+      if (args.includes('main...HEAD'))
+        return { status: 0, stdout: 'src/foo.ts\0' }
+      return { status: 0, stdout: '' }
+    })
+
+    readFileSyncMock.mockReturnValue('import { x } from "./utils"')
+    existsSyncMock.mockImplementation((p: string) => {
+      return ['/repo/src/foo.ts', '/repo/src/utils.ts'].includes(p)
+    })
+
+    const result = listChangedFiles('/repo', { includeDeps: true })
+    expect(result).toContain('/repo/src/utils.ts')
+  })
+
+  it('excludes deps outside cwd', () => {
+    spawnSyncMock.mockImplementation((_cmd: string, args: string[]) => {
+      if (args.includes('--show-toplevel'))
+        return { status: 0, stdout: '/repo\n' }
+      if (args.includes('main...HEAD'))
+        return { status: 0, stdout: 'src/foo.ts\0' }
+      return { status: 0, stdout: '' }
+    })
+
+    readFileSyncMock.mockReturnValue('import { x } from "../../outside/dep"')
+    existsSyncMock.mockImplementation((p: string) => {
+      return ['/repo/src/foo.ts', '/outside/dep.ts'].includes(p)
+    })
+
+    const result = listChangedFiles('/repo', { includeDeps: true })
+    expect(result).not.toContain('/outside/dep.ts')
+    expect(result).toHaveLength(1)
+  })
+
+  it('excludes deps inside node_modules', () => {
+    spawnSyncMock.mockImplementation((_cmd: string, args: string[]) => {
+      if (args.includes('--show-toplevel'))
+        return { status: 0, stdout: '/repo\n' }
+      if (args.includes('main...HEAD'))
+        return { status: 0, stdout: 'src/foo.ts\0' }
+      return { status: 0, stdout: '' }
+    })
+
+    readFileSyncMock.mockReturnValue(
+      'import { x } from "./node_modules/pkg/index"',
+    )
+    existsSyncMock.mockImplementation((p: string) => {
+      return p === '/repo/src/foo.ts' || p.includes('node_modules')
+    })
+
+    const result = listChangedFiles('/repo', { includeDeps: true })
+    expect(result.some((p) => p.includes('node_modules'))).toBe(false)
+  })
+
+  it('resolves direct dep but not transitive dep at maxDepth=1', () => {
+    spawnSyncMock.mockImplementation((_cmd: string, args: string[]) => {
+      if (args.includes('--show-toplevel'))
+        return { status: 0, stdout: '/repo\n' }
+      if (args.includes('main...HEAD'))
+        return { status: 0, stdout: 'src/foo.ts\0' }
+      return { status: 0, stdout: '' }
+    })
+
+    readFileSyncMock.mockImplementation((p: string) => {
+      if (p === '/repo/src/foo.ts') return 'import { x } from "./bar"'
+      if (p === '/repo/src/bar.ts') return 'import { y } from "./baz"'
+      return ''
+    })
+    existsSyncMock.mockImplementation((p: string) => {
+      return [
+        '/repo/src/foo.ts',
+        '/repo/src/bar.ts',
+        '/repo/src/baz.ts',
+      ].includes(p)
+    })
+
+    const result = listChangedFiles('/repo', { includeDeps: true, maxDepth: 1 })
+    expect(result).toContain('/repo/src/foo.ts')
+    expect(result).toContain('/repo/src/bar.ts')
+    expect(result).not.toContain('/repo/src/baz.ts')
   })
 
   it('skips non-local imports in dependency resolution', () => {
