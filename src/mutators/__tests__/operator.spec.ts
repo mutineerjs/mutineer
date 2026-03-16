@@ -17,6 +17,14 @@ import {
   divToMul,
   modToMul,
   powerToMul,
+  preInc,
+  preDec,
+  postInc,
+  postDec,
+  addAssignToSub,
+  subAssignToAdd,
+  mulAssignToDiv,
+  divAssignToMul,
 } from '../operator.js'
 import { buildParseContext } from '../utils.js'
 
@@ -230,5 +238,121 @@ describe('powerToMul', () => {
     const src = `const n = a ** b`
     const [result] = powerToMul.apply(src)
     expect(result.code).toBe(`const n = a * b`)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Increment/decrement mutators
+// ---------------------------------------------------------------------------
+
+describe('preInc', () => {
+  it("replaces '++x' to '--x'", () => {
+    const src = `const n = ++i`
+    const [result] = preInc.apply(src)
+    expect(result.code).toBe(`const n = --i`)
+  })
+
+  it('does not match postfix x++', () => {
+    const src = `i++`
+    expect(preInc.apply(src)).toHaveLength(0)
+  })
+
+  it('applyWithContext matches apply', () => {
+    const src = `const n = ++i`
+    const ctx = buildParseContext(src)
+    expect(preInc.applyWithContext!(src, ctx)).toEqual(preInc.apply(src))
+  })
+})
+
+describe('preDec', () => {
+  it("replaces '--x' to '++x'", () => {
+    const src = `const n = --i`
+    const [result] = preDec.apply(src)
+    expect(result.code).toBe(`const n = ++i`)
+  })
+
+  it('does not match postfix x--', () => {
+    const src = `i--`
+    expect(preDec.apply(src)).toHaveLength(0)
+  })
+})
+
+describe('postInc', () => {
+  it("replaces 'x++' to 'x--'", () => {
+    const src = `i++`
+    const [result] = postInc.apply(src)
+    expect(result.code).toBe(`i--`)
+  })
+
+  it('does not match prefix ++x', () => {
+    const src = `const n = ++i`
+    expect(postInc.apply(src)).toHaveLength(0)
+  })
+
+  it('applyWithContext matches apply', () => {
+    const src = `i++`
+    const ctx = buildParseContext(src)
+    expect(postInc.applyWithContext!(src, ctx)).toEqual(postInc.apply(src))
+  })
+})
+
+describe('postDec', () => {
+  it("replaces 'x--' to 'x++'", () => {
+    const src = `i--`
+    const [result] = postDec.apply(src)
+    expect(result.code).toBe(`i++`)
+  })
+
+  it('does not match prefix --x', () => {
+    const src = `const n = --i`
+    expect(postDec.apply(src)).toHaveLength(0)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Compound assignment mutators
+// ---------------------------------------------------------------------------
+
+describe('addAssignToSub', () => {
+  it("replaces '+=' with '-='", () => {
+    const src = `x += 1`
+    const [result] = addAssignToSub.apply(src)
+    expect(result.code).toBe(`x -= 1`)
+  })
+
+  it('returns no results when operator absent', () => {
+    expect(addAssignToSub.apply(`x -= 1`)).toHaveLength(0)
+  })
+
+  it('applyWithContext matches apply', () => {
+    const src = `x += 1`
+    const ctx = buildParseContext(src)
+    expect(addAssignToSub.applyWithContext!(src, ctx)).toEqual(
+      addAssignToSub.apply(src),
+    )
+  })
+})
+
+describe('subAssignToAdd', () => {
+  it("replaces '-=' with '+='", () => {
+    const src = `x -= 1`
+    const [result] = subAssignToAdd.apply(src)
+    expect(result.code).toBe(`x += 1`)
+  })
+})
+
+describe('mulAssignToDiv', () => {
+  it("replaces '*=' with '/='", () => {
+    const src = `x *= 2`
+    const [result] = mulAssignToDiv.apply(src)
+    expect(result.code).toBe(`x /= 2`)
+  })
+})
+
+describe('divAssignToMul', () => {
+  it("replaces '/=' with '*='", () => {
+    const src = `x /= 2`
+    const [result] = divAssignToMul.apply(src)
+    expect(result.code).toBe(`x *= 2`)
   })
 })

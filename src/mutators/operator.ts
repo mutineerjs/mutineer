@@ -7,8 +7,9 @@
  */
 
 import type { ASTMutator, MutationOutput } from './types.js'
-import { collectOperatorTargets } from './utils.js'
+import { collectOperatorTargets, buildParseContext } from './utils.js'
 import type { ParseContext } from './utils.js'
+import type { OperatorTarget } from './types.js'
 
 /**
  * Factory to build an operator mutator using AST traversal and token analysis.
@@ -48,6 +49,91 @@ function makeOperatorMutator(
       return targetsToOutputs(
         src,
         ctx.preCollected.operatorTargets.get(fromOp) ?? [],
+      )
+    },
+  }
+}
+
+/**
+ * Factory for UpdateExpression mutators (++/--).
+ * mapKey distinguishes prefix vs postfix: 'pre++', 'post++', 'pre--', 'post--'
+ */
+function makeUpdateMutator(
+  name: string,
+  description: string,
+  mapKey: string,
+  toOp: string,
+): ASTMutator {
+  function targetsToOutputs(
+    src: string,
+    targets: OperatorTarget[],
+  ): readonly MutationOutput[] {
+    return targets.map((target) => ({
+      line: target.line,
+      col: target.col1,
+      code: src.slice(0, target.start) + toOp + src.slice(target.end),
+    }))
+  }
+
+  return {
+    name,
+    description,
+    apply(src: string): readonly MutationOutput[] {
+      const ctx = buildParseContext(src)
+      return targetsToOutputs(
+        src,
+        ctx.preCollected.updateTargets.get(mapKey) ?? [],
+      )
+    },
+    applyWithContext(
+      src: string,
+      ctx: ParseContext,
+    ): readonly MutationOutput[] {
+      return targetsToOutputs(
+        src,
+        ctx.preCollected.updateTargets.get(mapKey) ?? [],
+      )
+    },
+  }
+}
+
+/**
+ * Factory for AssignmentExpression mutators (+=, -=, *=, /=).
+ */
+function makeAssignmentMutator(
+  name: string,
+  description: string,
+  fromOp: string,
+  toOp: string,
+): ASTMutator {
+  function targetsToOutputs(
+    src: string,
+    targets: OperatorTarget[],
+  ): readonly MutationOutput[] {
+    return targets.map((target) => ({
+      line: target.line,
+      col: target.col1,
+      code: src.slice(0, target.start) + toOp + src.slice(target.end),
+    }))
+  }
+
+  return {
+    name,
+    description,
+    apply(src: string): readonly MutationOutput[] {
+      const ctx = buildParseContext(src)
+      return targetsToOutputs(
+        src,
+        ctx.preCollected.assignmentTargets.get(fromOp) ?? [],
+      )
+    },
+    applyWithContext(
+      src: string,
+      ctx: ParseContext,
+    ): readonly MutationOutput[] {
+      return targetsToOutputs(
+        src,
+        ctx.preCollected.assignmentTargets.get(fromOp) ?? [],
       )
     },
   }
@@ -178,4 +264,64 @@ export const powerToMul = makeOperatorMutator(
   "Change '**' to '*'",
   '**',
   '*',
+)
+
+/* === Increment/decrement mutators === */
+
+export const preInc = makeUpdateMutator(
+  'preInc',
+  "Change '++x' to '--x'",
+  'pre++',
+  '--',
+)
+
+export const preDec = makeUpdateMutator(
+  'preDec',
+  "Change '--x' to '++x'",
+  'pre--',
+  '++',
+)
+
+export const postInc = makeUpdateMutator(
+  'postInc',
+  "Change 'x++' to 'x--'",
+  'post++',
+  '--',
+)
+
+export const postDec = makeUpdateMutator(
+  'postDec',
+  "Change 'x--' to 'x++'",
+  'post--',
+  '++',
+)
+
+/* === Compound assignment mutators === */
+
+export const addAssignToSub = makeAssignmentMutator(
+  'addAssignToSub',
+  "Change '+=' to '-='",
+  '+=',
+  '-=',
+)
+
+export const subAssignToAdd = makeAssignmentMutator(
+  'subAssignToAdd',
+  "Change '-=' to '+='",
+  '-=',
+  '+=',
+)
+
+export const mulAssignToDiv = makeAssignmentMutator(
+  'mulAssignToDiv',
+  "Change '*=' to '/='",
+  '*=',
+  '/=',
+)
+
+export const divAssignToMul = makeAssignmentMutator(
+  'divAssignToMul',
+  "Change '/=' to '*='",
+  '/=',
+  '*=',
 )
