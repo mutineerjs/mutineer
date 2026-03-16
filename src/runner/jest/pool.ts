@@ -335,15 +335,14 @@ export class JestPool {
   }
 
   private releaseWorker(worker: JestWorker): void {
+    if (!worker.isReady()) return
     const waiting = this.waitingTasks.shift()
     if (waiting) {
       waiting(worker)
       return
     }
 
-    if (worker.isReady()) {
-      this.availableWorkers.push(worker)
-    }
+    this.availableWorkers.push(worker)
   }
 
   async run(mutant: MutantPayload, tests: string[]): Promise<MutantRunSummary> {

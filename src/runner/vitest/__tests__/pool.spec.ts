@@ -111,6 +111,69 @@ describe('VitestPool', () => {
     expect((mockPool as any).run).toHaveBeenCalledWith(mutant, ['bar.spec.ts'])
   })
 
+  it('does not give a dead worker to a waiting task after timeout', async () => {
+    let callCount = 0
+    const allWorkers: any[] = []
+
+    const pool = new VitestPool({
+      cwd: process.cwd(),
+      concurrency: 1,
+      timeoutMs: 5000,
+      createWorker: (id) => {
+        callCount++
+        const workerNum = callCount
+        const worker = new EventEmitter() as any
+        worker.id = id
+        worker._ready = true
+        worker.start = vi.fn().mockResolvedValue(undefined)
+        worker.isReady = vi.fn(() => worker._ready)
+        worker.isBusy = vi.fn().mockReturnValue(false)
+        worker.run = vi.fn().mockImplementation(async () => {
+          if (workerNum === 1) {
+            worker._ready = false
+            Promise.resolve().then(() => worker.emit('exit'))
+            return { killed: false, durationMs: 5000, error: 'timeout' }
+          }
+          return { killed: true, durationMs: 42 }
+        })
+        worker.shutdown = vi.fn().mockResolvedValue(undefined)
+        worker.kill = vi.fn()
+        allWorkers.push(worker)
+        return worker
+      },
+    })
+
+    await pool.init()
+
+    const mutant1: MutantPayload = {
+      id: '1',
+      name: 'm1',
+      file: 'a.ts',
+      code: 'x',
+      line: 1,
+      col: 1,
+    }
+    const mutant2: MutantPayload = {
+      id: '2',
+      name: 'm2',
+      file: 'b.ts',
+      code: 'y',
+      line: 1,
+      col: 1,
+    }
+
+    const [result1, result2] = await Promise.all([
+      pool.run(mutant1, ['a.spec.ts']),
+      pool.run(mutant2, ['b.spec.ts']),
+    ])
+
+    expect(result1).toMatchObject({ error: 'timeout' })
+    expect(result2).toMatchObject({ killed: true })
+    expect(allWorkers).toHaveLength(2)
+    expect(allWorkers[1].run).toHaveBeenCalled()
+    await pool.shutdown()
+  })
+
   it('maps runWithPool errors to error status', async () => {
     const mockPool = {
       run: vi.fn().mockRejectedValue(new Error('boom')),
