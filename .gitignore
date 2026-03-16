@@ -150,3 +150,5 @@ reports/mutation/
 
 # Mutineer temp directories for fast runner
 **/__mutineer__/
+
+mutineer-report.json

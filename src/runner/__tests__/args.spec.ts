@@ -328,6 +328,28 @@ describe('parseCliOptions', () => {
       'Invalid value for --timeout: abc',
     )
   })
+
+  it('defaults reportFormat to text', () => {
+    const opts = parseCliOptions([], emptyCfg)
+    expect(opts.reportFormat).toBe('text')
+  })
+
+  it('parses --report json', () => {
+    const opts = parseCliOptions(['--report', 'json'], emptyCfg)
+    expect(opts.reportFormat).toBe('json')
+  })
+
+  it('reads report from config', () => {
+    const opts = parseCliOptions([], { report: 'json' } as any)
+    expect(opts.reportFormat).toBe('json')
+  })
+
+  it('CLI --report takes precedence over config', () => {
+    const opts = parseCliOptions(['--report', 'json'], {
+      report: 'text',
+    } as any)
+    expect(opts.reportFormat).toBe('json')
+  })
 })
 
 describe('validatePositiveMs', () => {

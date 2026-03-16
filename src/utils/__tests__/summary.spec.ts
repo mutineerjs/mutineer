@@ -1,5 +1,10 @@
 import { describe, it, expect, vi } from 'vitest'
-import { computeSummary, printSummary, summarise } from '../summary.js'
+import {
+  computeSummary,
+  printSummary,
+  summarise,
+  buildJsonReport,
+} from '../summary.js'
 import type { MutantCacheEntry } from '../../types/mutant.js'
 
 /** Strip ANSI escape codes for clean text assertions */
@@ -122,6 +127,54 @@ describe('summary', () => {
     expect(lines.some((l) => l.includes('↳'))).toBe(false)
 
     logSpy.mockRestore()
+  })
+
+  it('buildJsonReport includes schemaVersion, timestamp, summary, and mutants', () => {
+    const cache = {
+      a: makeEntry({ status: 'killed', file: '/tmp/a.ts', mutator: 'flip' }),
+      b: makeEntry({ status: 'escaped', file: '/tmp/b.ts', mutator: 'wrap' }),
+    }
+    const summary = computeSummary(cache)
+    const report = buildJsonReport(summary, cache, 1000)
+
+    expect(report.schemaVersion).toBe(1)
+    expect(typeof report.timestamp).toBe('string')
+    expect(report.durationMs).toBe(1000)
+    expect(report.summary).toEqual(summary)
+    expect(report.mutants).toHaveLength(2)
+  })
+
+  it('buildJsonReport mutant entries have required fields', () => {
+    const cache = {
+      a: makeEntry({
+        status: 'escaped',
+        file: '/tmp/a.ts',
+        mutator: 'flip',
+        originalSnippet: 'a === b',
+        mutatedSnippet: 'a !== b',
+        coveringTests: ['/tmp/a.spec.ts'],
+      }),
+    }
+    const summary = computeSummary(cache)
+    const report = buildJsonReport(summary, cache)
+    const mutant = report.mutants[0]
+
+    expect(mutant.file).toBe('/tmp/a.ts')
+    expect(mutant.status).toBe('escaped')
+    expect(mutant.mutator).toBe('flip')
+    expect(mutant.originalSnippet).toBe('a === b')
+    expect(mutant.mutatedSnippet).toBe('a !== b')
+    expect(mutant.coveringTests).toEqual(['/tmp/a.spec.ts'])
+  })
+
+  it('buildJsonReport omits optional fields when absent', () => {
+    const cache = { a: makeEntry({ status: 'killed' }) }
+    const summary = computeSummary(cache)
+    const report = buildJsonReport(summary, cache)
+
+    expect('durationMs' in report).toBe(false)
+    expect('originalSnippet' in report.mutants[0]).toBe(false)
+    expect('coveringTests' in report.mutants[0]).toBe(false)
   })
 
   it('summarise returns summary and prints', () => {

@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import path from 'node:path'
 import { render, type Instance } from 'ink'
 import { createElement } from 'react'
 
@@ -6,7 +7,11 @@ import type { MutantCacheEntry, MutantStatus } from '../types/mutant.js'
 import type { TestRunnerAdapter } from './types.js'
 import type { MutantTask } from './tasks.js'
 import { Progress } from '../utils/progress.js'
-import { computeSummary, printSummary } from '../utils/summary.js'
+import {
+  computeSummary,
+  printSummary,
+  buildJsonReport,
+} from '../utils/summary.js'
 import { saveCacheAtomic } from './cache.js'
 import { cleanupMutineerDirs } from './cleanup.js'
 import { PoolSpinner } from '../utils/PoolSpinner.js'
@@ -21,6 +26,7 @@ export interface PoolExecutionOptions {
   concurrency: number
   progressMode: 'bar' | 'list' | 'quiet'
   minKillPercent?: number
+  reportFormat?: 'text' | 'json'
   cwd: string
 }
 
@@ -48,7 +54,16 @@ export async function executePool(opts: PoolExecutionOptions): Promise<void> {
     const durationMs = Date.now() - mutationStartTime
     progress.finish()
     const summary = computeSummary(cache)
-    printSummary(summary, cache, durationMs)
+    if (opts.reportFormat === 'json') {
+      const report = buildJsonReport(summary, cache, durationMs)
+      const outPath = path.join(opts.cwd, 'mutineer-report.json')
+      fs.writeFileSync(outPath, JSON.stringify(report, null, 2))
+      log.info(
+        `JSON report written to ${path.relative(process.cwd(), outPath)}`,
+      )
+    } else {
+      printSummary(summary, cache, durationMs)
+    }
     if (opts.minKillPercent !== undefined) {
       const killRateString = summary.killRate.toFixed(2)
       const thresholdString = opts.minKillPercent.toFixed(2)
