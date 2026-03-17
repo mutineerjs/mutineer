@@ -17,8 +17,8 @@ export function getCacheFilename(shard?: {
   index: number
   total: number
 }): string {
-  if (!shard) return '.mutate-cache.json'
-  return `.mutate-cache-shard-${shard.index}-of-${shard.total}.json`
+  if (!shard) return '.mutineer-cache.json'
+  return `.mutineer-cache-shard-${shard.index}-of-${shard.total}.json`
 }
 
 /**

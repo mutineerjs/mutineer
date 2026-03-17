@@ -226,7 +226,7 @@ describe('executePool', () => {
       cwd: tmpDir,
     })
 
-    const cacheFile = path.join(tmpDir, '.mutate-cache.json')
+    const cacheFile = path.join(tmpDir, '.mutineer-cache.json')
     const content = JSON.parse(await fs.readFile(cacheFile, 'utf8'))
     expect(content['persist-key']).toBeDefined()
   })
@@ -245,12 +245,12 @@ describe('executePool', () => {
       shard: { index: 2, total: 4 },
     })
 
-    const shardFile = path.join(tmpDir, '.mutate-cache-shard-2-of-4.json')
+    const shardFile = path.join(tmpDir, '.mutineer-cache-shard-2-of-4.json')
     const content = JSON.parse(await fs.readFile(shardFile, 'utf8'))
     expect(content['shard-key']).toBeDefined()
     // default file should NOT exist
     await expect(
-      fs.access(path.join(tmpDir, '.mutate-cache.json')),
+      fs.access(path.join(tmpDir, '.mutineer-cache.json')),
     ).rejects.toThrow()
   })
 

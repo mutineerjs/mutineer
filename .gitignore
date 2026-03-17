@@ -145,8 +145,8 @@ __tests__/ai/*
 .stryker-tmp/*
 reports/mutation/
 
-.mutate-cache.json
-.mutate-cache.json.tmp
+.mutineer-cache*.json
+.mutineer-cache*.json.tmp
 
 # Mutineer temp directories for fast runner
 **/__mutineer__/

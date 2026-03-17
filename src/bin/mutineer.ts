@@ -82,7 +82,7 @@ async function main(): Promise<void> {
     }
   } else if (args[0] === CLEAN_COMMAND) {
     console.log('Cleaning up __mutineer__ directories...')
-    await cleanupMutineerDirs(process.cwd())
+    await cleanupMutineerDirs(process.cwd(), { includeCacheFiles: true })
     console.log('Done.')
   } else {
     console.error(
