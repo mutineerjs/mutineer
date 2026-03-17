@@ -40,7 +40,7 @@ export async function resolveCoverageConfig(
       ? true
       : coveragePreference === false
         ? false
-        : isCoverageRequestedInArgs([...cliArgs]) || coverageConfig.coverageEnabled
+        : isCoverageRequestedInArgs([...cliArgs])
 
   // Load pre-existing coverage data if provided
   let coverageData: CoverageData | null = null
