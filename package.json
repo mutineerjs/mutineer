@@ -98,6 +98,7 @@
     }
   },
   "devDependencies": {
+    "@vitest/coverage-v8": "^4.0.15",
     "@commitlint/cli": "^20.4.3",
     "@commitlint/config-conventional": "^20.4.3",
     "@types/babel__traverse": "^7.28.0",

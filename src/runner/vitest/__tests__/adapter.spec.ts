@@ -180,6 +180,33 @@ describe('Vitest adapter', () => {
   })
 })
 
+describe('hasCoverageProvider', () => {
+  it('returns true when @vitest/coverage-v8 is resolvable', () => {
+    const adapter = makeAdapter({ cwd: process.cwd() })
+    // coverage-v8 is installed as a devDependency, so this must resolve
+    expect(adapter.hasCoverageProvider()).toBe(true)
+  })
+
+  it('returns false when neither provider is resolvable', () => {
+    const adapter = makeAdapter({ cwd: '/tmp' })
+    expect(adapter.hasCoverageProvider()).toBe(false)
+  })
+
+  it('returns true when @vitest/coverage-istanbul is resolvable', () => {
+    const adapter = makeAdapter({ cwd: process.cwd() })
+    const origResolve = require.resolve
+    const resolveStub = vi
+      .spyOn(require, 'resolve')
+      .mockImplementation((id: string, opts?: any) => {
+        if (String(id).includes('coverage-v8')) throw new Error('not found')
+        if (String(id).includes('coverage-istanbul')) return '/fake/path'
+        return origResolve(id, opts)
+      })
+    expect(adapter.hasCoverageProvider()).toBe(true)
+    resolveStub.mockRestore()
+  })
+})
+
 describe('isCoverageRequestedInArgs', () => {
   it('detects enabled coverage flags', () => {
     expect(isCoverageRequestedInArgs(['--coverage'])).toBe(true)
