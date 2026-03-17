@@ -181,6 +181,147 @@ describe('autoDiscoverTargetsAndTests', () => {
     }
   })
 
+  it('shared dep imported by 2 tests appears in testMap for both', async () => {
+    const tmpDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mutineer-discover-shared-'),
+    )
+    const srcDir = path.join(tmpDir, 'src')
+    const sharedDep = path.join(srcDir, 'shared.ts')
+    const test1 = path.join(srcDir, 'a.test.ts')
+    const test2 = path.join(srcDir, 'b.test.ts')
+
+    await fs.mkdir(srcDir, { recursive: true })
+    await fs.writeFile(sharedDep, 'export const shared = 1\n', 'utf8')
+    const importShared = ['im', 'port { shared } from "./shared"'].join('')
+    await fs.writeFile(test1, `${importShared}\n`, 'utf8')
+    await fs.writeFile(test2, `${importShared}\n`, 'utf8')
+
+    try {
+      const { testMap } = await autoDiscoverTargetsAndTests(tmpDir, {
+        testPatterns: ['**/*.test.ts'],
+      })
+      const sharedAbs = normalizePath(sharedDep)
+      const test1Abs = normalizePath(test1)
+      const test2Abs = normalizePath(test2)
+
+      expect(testMap.get(sharedAbs)?.has(test1Abs)).toBe(true)
+      expect(testMap.get(sharedAbs)?.has(test2Abs)).toBe(true)
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true })
+    }
+  })
+
+  it('diamond graph: shared grandchild discovered with no duplicates', async () => {
+    const tmpDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mutineer-discover-diamond-'),
+    )
+    const srcDir = path.join(tmpDir, 'src')
+    const fileA = path.join(srcDir, 'A.ts')
+    const fileB = path.join(srcDir, 'B.ts')
+    const fileC = path.join(srcDir, 'C.ts')
+    const fileD = path.join(srcDir, 'D.ts')
+    const testFile = path.join(srcDir, 'test.test.ts')
+
+    await fs.mkdir(srcDir, { recursive: true })
+    await fs.writeFile(fileD, 'export const d = 4\n', 'utf8')
+    const importD = ['im', 'port { d } from "./D"'].join('')
+    await fs.writeFile(fileB, `${importD}\nexport const b = 2\n`, 'utf8')
+    await fs.writeFile(fileC, `${importD}\nexport const c = 3\n`, 'utf8')
+    const importB = ['im', 'port { b } from "./B"'].join('')
+    const importC = ['im', 'port { c } from "./C"'].join('')
+    await fs.writeFile(
+      fileA,
+      `${importB}\n${importC}\nexport const a = 1\n`,
+      'utf8',
+    )
+    const importA = ['im', 'port { a } from "./A"'].join('')
+    await fs.writeFile(testFile, `${importA}\n`, 'utf8')
+
+    try {
+      const { testMap } = await autoDiscoverTargetsAndTests(tmpDir, {
+        testPatterns: ['**/*.test.ts'],
+      })
+      const dAbs = normalizePath(fileD)
+      const testAbs = normalizePath(testFile)
+
+      expect(testMap.get(dAbs)?.has(testAbs)).toBe(true)
+      // D should only be in testMap once (Set ensures no duplicates)
+      expect(testMap.get(dAbs)?.size).toBe(1)
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true })
+    }
+  })
+
+  it('deep chain: deepest file is discovered correctly', async () => {
+    const tmpDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mutineer-discover-deep-'),
+    )
+    const srcDir = path.join(tmpDir, 'src')
+    await fs.mkdir(srcDir, { recursive: true })
+
+    // chain: test -> f1 -> f2 -> f3 -> f4 -> f5
+    const files = Array.from({ length: 5 }, (_, i) =>
+      path.join(srcDir, `f${i + 1}.ts`),
+    )
+    const testFile = path.join(srcDir, 'chain.test.ts')
+
+    await fs.writeFile(files[4], 'export const f5 = 5\n', 'utf8')
+    for (let i = 3; i >= 0; i--) {
+      const importNext = ['im', `port { f${i + 2} } from "./f${i + 2}"`].join(
+        '',
+      )
+      await fs.writeFile(
+        files[i],
+        `${importNext}\nexport const f${i + 1} = ${i + 1}\n`,
+        'utf8',
+      )
+    }
+    const importF1 = ['im', 'port { f1 } from "./f1"'].join('')
+    await fs.writeFile(testFile, `${importF1}\n`, 'utf8')
+
+    try {
+      const { testMap } = await autoDiscoverTargetsAndTests(tmpDir, {
+        testPatterns: ['**/*.test.ts'],
+      })
+      const f5Abs = normalizePath(files[4])
+      const testAbs = normalizePath(testFile)
+
+      expect(testMap.get(f5Abs)?.has(testAbs)).toBe(true)
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true })
+    }
+  })
+
+  it('2 tests directly importing same file both appear in directTestMap', async () => {
+    const tmpDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mutineer-discover-direct2-'),
+    )
+    const srcDir = path.join(tmpDir, 'src')
+    const sharedDep = path.join(srcDir, 'shared.ts')
+    const test1 = path.join(srcDir, 'a.test.ts')
+    const test2 = path.join(srcDir, 'b.test.ts')
+
+    await fs.mkdir(srcDir, { recursive: true })
+    await fs.writeFile(sharedDep, 'export const shared = 1\n', 'utf8')
+    const importShared = ['im', 'port { shared } from "./shared"'].join('')
+    await fs.writeFile(test1, `${importShared}\n`, 'utf8')
+    await fs.writeFile(test2, `${importShared}\n`, 'utf8')
+
+    try {
+      const { directTestMap } = await autoDiscoverTargetsAndTests(tmpDir, {
+        testPatterns: ['**/*.test.ts'],
+      })
+      const sharedAbs = normalizePath(sharedDep)
+      const test1Abs = normalizePath(test1)
+      const test2Abs = normalizePath(test2)
+
+      expect(directTestMap.get(sharedAbs)?.has(test1Abs)).toBe(true)
+      expect(directTestMap.get(sharedAbs)?.has(test2Abs)).toBe(true)
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true })
+    }
+  })
+
   it('ignores test files when collecting mutate targets', async () => {
     const tmpDir = await fs.mkdtemp(
       path.join(os.tmpdir(), 'mutineer-discover-'),
