@@ -36,12 +36,29 @@ vi.mock('../discover.js', () => ({
 vi.mock('../changed.js', () => ({
   listChangedFiles: vi.fn().mockReturnValue([]),
 }))
-
+vi.mock('../pool-executor.js', () => ({
+  executePool: vi.fn().mockResolvedValue(undefined),
+}))
+vi.mock('../variants.js', () => ({
+  enumerateAllVariants: vi.fn().mockResolvedValue([]),
+  getTargetFile: vi
+    .fn()
+    .mockImplementation((t: unknown) =>
+      typeof t === 'string' ? t : (t as { file: string }).file,
+    ),
+}))
+vi.mock('../tasks.js', () => ({
+  prepareTasks: vi.fn().mockReturnValue([]),
+}))
 import { runOrchestrator, parseMutantTimeoutMs } from '../orchestrator.js'
 import { loadMutineerConfig } from '../config.js'
 import { createVitestAdapter, type VitestAdapter } from '../vitest/index.js'
 import { autoDiscoverTargetsAndTests } from '../discover.js'
 import { listChangedFiles } from '../changed.js'
+import { executePool } from '../pool-executor.js'
+import { prepareTasks, type MutantTask } from '../tasks.js'
+import { enumerateAllVariants } from '../variants.js'
+import type { Variant } from '../../types/mutant.js'
 
 const mockAdapter = {
   name: 'vitest',
@@ -310,5 +327,81 @@ describe('runOrchestrator timeout precedence', () => {
     const call = vi.mocked(createVitestAdapter).mock.calls[0][0]
     expect(call.timeoutMs).toBeGreaterThan(0)
     expect(Number.isFinite(call.timeoutMs)).toBe(true)
+  })
+})
+
+describe('runOrchestrator shard filtering', () => {
+  const targetFile = '/cwd/src/foo.ts'
+  const testFile = '/cwd/src/__tests__/foo.spec.ts'
+
+  function makeTask(key: string): MutantTask {
+    return {
+      key,
+      v: {
+        id: `${key}`,
+        name: 'flipEQ',
+        file: targetFile,
+        code: '',
+        line: 1,
+        col: 0,
+        tests: [testFile],
+      },
+      tests: [testFile],
+    }
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    process.exitCode = undefined
+    vi.mocked(createVitestAdapter).mockReturnValue(
+      mockAdapter as unknown as VitestAdapter,
+    )
+    vi.mocked(loadMutineerConfig).mockResolvedValue({
+      targets: [targetFile],
+    })
+    vi.mocked(autoDiscoverTargetsAndTests).mockResolvedValue({
+      targets: [targetFile],
+      testMap: new Map([[targetFile, new Set([testFile])]]),
+      directTestMap: new Map(),
+    })
+    vi.mocked(mockAdapter.runBaseline).mockResolvedValue(true)
+    // Return a non-empty variants array so orchestrator doesn't exit early
+    vi.mocked(enumerateAllVariants).mockResolvedValue([{} as Variant])
+    const tasks = ['k0', 'k1', 'k2', 'k3'].map(makeTask)
+    vi.mocked(prepareTasks).mockReturnValue(tasks)
+  })
+
+  afterEach(() => {
+    process.exitCode = undefined
+  })
+
+  it('shard 1/2 assigns even-indexed tasks', async () => {
+    await runOrchestrator(['--shard', '1/2'], '/cwd')
+
+    const call = vi.mocked(executePool).mock.calls[0][0]
+    expect(call.tasks.map((t) => t.key)).toEqual(['k0', 'k2'])
+  })
+
+  it('shard 2/2 assigns odd-indexed tasks', async () => {
+    await runOrchestrator(['--shard', '2/2'], '/cwd')
+
+    const call = vi.mocked(executePool).mock.calls[0][0]
+    expect(call.tasks.map((t) => t.key)).toEqual(['k1', 'k3'])
+  })
+
+  it('does not call executePool when shard has no tasks', async () => {
+    // Only 1 task total; shard 2/2 gets nothing
+    vi.mocked(prepareTasks).mockReturnValue([makeTask('only')])
+
+    await runOrchestrator(['--shard', '2/2'], '/cwd')
+
+    expect(executePool).not.toHaveBeenCalled()
+  })
+
+  it('propagates shard to executePool', async () => {
+    await runOrchestrator(['--shard', '1/4'], '/cwd')
+
+    const call = vi.mocked(executePool).mock.calls[0][0]
+    expect(call.shard).toEqual({ index: 1, total: 4 })
   })
 })

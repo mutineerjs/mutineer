@@ -9,7 +9,6 @@ import { cleanupMutineerDirs } from '../runner/cleanup.js'
 const RUN_COMMAND = 'run'
 const CLEAN_COMMAND = 'clean'
 const INIT_COMMAND = 'init'
-
 export const HELP_TEXT = `\
 Usage: mutineer <command> [options]
 
@@ -31,6 +30,7 @@ Options (run):
   --min-kill-percent <n>    Minimum kill % threshold (0–100)
   --timeout <ms>            Per-mutant test timeout in ms (default: 30000)
   --report <text|json>      Output format: text (default) or json (writes mutineer-report.json)
+  --shard <n>/<total>       Run a shard of mutants (e.g. --shard 1/4)
 
   --help, -h                Show this help
   --version, -V             Show version

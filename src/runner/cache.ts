@@ -10,13 +10,25 @@ import path from 'node:path'
 import crypto from 'node:crypto'
 import type { MutantCacheEntry, MutantStatus } from '../types/mutant.js'
 
-const CACHE_FILENAME = '.mutate-cache.json'
+/**
+ * Get the cache filename for a given shard (or the default if none).
+ */
+export function getCacheFilename(shard?: {
+  index: number
+  total: number
+}): string {
+  if (!shard) return '.mutate-cache.json'
+  return `.mutate-cache-shard-${shard.index}-of-${shard.total}.json`
+}
 
 /**
  * Clear the cache file at the start of a run.
  */
-export async function clearCacheOnStart(cwd: string): Promise<void> {
-  const p = path.join(cwd, CACHE_FILENAME)
+export async function clearCacheOnStart(
+  cwd: string,
+  shard?: { index: number; total: number },
+): Promise<void> {
+  const p = path.join(cwd, getCacheFilename(shard))
   try {
     await fs.unlink(p)
   } catch {
@@ -30,8 +42,9 @@ export async function clearCacheOnStart(cwd: string): Promise<void> {
 export async function saveCacheAtomic(
   cwd: string,
   cache: Record<string, MutantCacheEntry>,
+  shard?: { index: number; total: number },
 ): Promise<void> {
-  const p = path.join(cwd, CACHE_FILENAME)
+  const p = path.join(cwd, getCacheFilename(shard))
   const tmp = p + '.tmp'
   const json = JSON.stringify(cache, null, 2)
   await fs.writeFile(tmp, json, 'utf8')
@@ -98,8 +111,9 @@ export function hash(s: string): string {
  */
 export async function readMutantCache(
   cwd: string,
+  shard?: { index: number; total: number },
 ): Promise<Record<string, MutantCacheEntry>> {
-  const p = path.join(cwd, CACHE_FILENAME)
+  const p = path.join(cwd, getCacheFilename(shard))
   try {
     const data = await fs.readFile(p, 'utf8')
     const raw = JSON.parse(data) as Record<string, unknown>

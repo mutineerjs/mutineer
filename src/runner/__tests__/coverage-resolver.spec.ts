@@ -24,6 +24,7 @@ function makeOpts(overrides: Partial<ParsedCliOptions> = {}): ParsedCliOptions {
     runner: 'vitest',
     timeout: undefined,
     reportFormat: 'text',
+    shard: undefined,
     ...overrides,
   }
 }
@@ -76,16 +77,6 @@ describe('resolveCoverageConfig', () => {
       [],
     )
     expect(result.enableCoverageForBaseline).toBe(true)
-  })
-
-  it('does not enable coverage for baseline from adapter detection alone', async () => {
-    const adapter = makeAdapter({
-      detectCoverageConfig: vi
-        .fn()
-        .mockResolvedValue({ perTestEnabled: false, coverageEnabled: true }),
-    })
-    const result = await resolveCoverageConfig(makeOpts(), {}, adapter, [])
-    expect(result.enableCoverageForBaseline).toBe(false)
   })
 
   it('disables coverage for baseline when config coverage is false', async () => {

@@ -231,6 +231,53 @@ describe('executePool', () => {
     expect(content['persist-key']).toBeDefined()
   })
 
+  it('saves to shard-named cache file when shard is provided', async () => {
+    const adapter = makeAdapter()
+    const cache: Record<string, MutantCacheEntry> = {}
+
+    await executePool({
+      tasks: [makeTask({ key: 'shard-key' })],
+      adapter,
+      cache,
+      concurrency: 1,
+      progressMode: 'list',
+      cwd: tmpDir,
+      shard: { index: 2, total: 4 },
+    })
+
+    const shardFile = path.join(tmpDir, '.mutate-cache-shard-2-of-4.json')
+    const content = JSON.parse(await fs.readFile(shardFile, 'utf8'))
+    expect(content['shard-key']).toBeDefined()
+    // default file should NOT exist
+    await expect(
+      fs.access(path.join(tmpDir, '.mutate-cache.json')),
+    ).rejects.toThrow()
+  })
+
+  it('writes shard-suffixed JSON report when shard and reportFormat=json are set', async () => {
+    const adapter = makeAdapter()
+    const cache: Record<string, MutantCacheEntry> = {}
+
+    await executePool({
+      tasks: [makeTask({ key: 'shard-report-key' })],
+      adapter,
+      cache,
+      concurrency: 1,
+      progressMode: 'list',
+      cwd: tmpDir,
+      reportFormat: 'json',
+      shard: { index: 1, total: 2 },
+    })
+
+    const reportFile = path.join(tmpDir, 'mutineer-report-shard-1-of-2.json')
+    const content = JSON.parse(await fs.readFile(reportFile, 'utf8'))
+    expect(content.schemaVersion).toBe(1)
+    // default report should NOT exist
+    await expect(
+      fs.access(path.join(tmpDir, 'mutineer-report.json')),
+    ).rejects.toThrow()
+  })
+
   it('escaped mutant stores snippets when lines differ', async () => {
     const tmpFile = path.join(tmpDir, 'source.ts')
     await fs.writeFile(tmpFile, 'const x = a + b\n')

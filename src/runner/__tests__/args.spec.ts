@@ -9,6 +9,7 @@ import {
   parseProgressMode,
   parseCliOptions,
   extractConfigPath,
+  parseShardOption,
 } from '../args.js'
 
 describe('parseFlagNumber', () => {
@@ -381,6 +382,64 @@ describe('validatePositiveMs', () => {
     expect(() => validatePositiveMs(NaN, '--timeout')).toThrow(
       'Invalid --timeout: expected a positive number',
     )
+  })
+})
+
+describe('parseShardOption', () => {
+  it('returns undefined when --shard is absent', () => {
+    expect(parseShardOption([])).toBeUndefined()
+    expect(parseShardOption(['--runner', 'vitest'])).toBeUndefined()
+  })
+
+  it('parses valid shard with space syntax', () => {
+    expect(parseShardOption(['--shard', '1/2'])).toEqual({ index: 1, total: 2 })
+    expect(parseShardOption(['--shard', '2/2'])).toEqual({ index: 2, total: 2 })
+    expect(parseShardOption(['--shard', '3/4'])).toEqual({ index: 3, total: 4 })
+  })
+
+  it('parses valid shard with = syntax', () => {
+    expect(parseShardOption(['--shard=1/2'])).toEqual({ index: 1, total: 2 })
+  })
+
+  it('throws on 5/4 (index > total)', () => {
+    expect(() => parseShardOption(['--shard', '5/4'])).toThrow(
+      'Invalid --shard',
+    )
+  })
+
+  it('throws on 0/4 (index < 1)', () => {
+    expect(() => parseShardOption(['--shard', '0/4'])).toThrow(
+      'Invalid --shard',
+    )
+  })
+
+  it('throws on 1/0 (total < 1)', () => {
+    expect(() => parseShardOption(['--shard', '1/0'])).toThrow(
+      'Invalid --shard',
+    )
+  })
+
+  it('throws on bad format', () => {
+    expect(() => parseShardOption(['--shard', 'bad'])).toThrow(
+      'Invalid --shard format',
+    )
+    expect(() => parseShardOption(['--shard', '1-2'])).toThrow(
+      'Invalid --shard format',
+    )
+  })
+})
+
+describe('parseCliOptions shard', () => {
+  const emptyCfg = {} as any
+
+  it('parses --shard into opts.shard', () => {
+    const opts = parseCliOptions(['--shard', '2/4'], emptyCfg)
+    expect(opts.shard).toEqual({ index: 2, total: 4 })
+  })
+
+  it('opts.shard is undefined when flag absent', () => {
+    const opts = parseCliOptions([], emptyCfg)
+    expect(opts.shard).toBeUndefined()
   })
 })
 

@@ -24,6 +24,7 @@ export interface ParsedCliOptions {
   readonly runner: 'vitest' | 'jest'
   readonly timeout: number | undefined
   readonly reportFormat: 'text' | 'json'
+  readonly shard: { index: number; total: number } | undefined
 }
 
 /**
@@ -153,6 +154,34 @@ export function extractConfigPath(args: readonly string[]): string | undefined {
 }
 
 /**
+ * Parse the --shard <n>/<total> option.
+ * Throws on bad format or out-of-range values.
+ */
+export function parseShardOption(
+  args: readonly string[],
+): { index: number; total: number } | undefined {
+  const raw = readStringFlag(args, '--shard')
+  if (raw === undefined) return undefined
+  const match = /^(\d+)\/(\d+)$/.exec(raw)
+  if (!match) {
+    throw new Error(
+      `Invalid --shard format: expected <n>/<total>, got "${raw}"`,
+    )
+  }
+  const index = parseInt(match[1], 10)
+  const total = parseInt(match[2], 10)
+  if (total < 1) {
+    throw new Error(`Invalid --shard: total must be >= 1 (got ${total})`)
+  }
+  if (index < 1 || index > total) {
+    throw new Error(
+      `Invalid --shard: index must be between 1 and ${total} (got ${index})`,
+    )
+  }
+  return { index, total }
+}
+
+/**
  * Parse all CLI options.
  */
 export function parseCliOptions(
@@ -197,6 +226,8 @@ export function parseCliOptions(
   const reportFormat: 'text' | 'json' =
     reportFlag === 'json' || cfg.report === 'json' ? 'json' : 'text'
 
+  const shard = parseShardOption(args)
+
   return {
     configPath,
     wantsChanged,
@@ -210,5 +241,6 @@ export function parseCliOptions(
     runner,
     timeout,
     reportFormat,
+    shard,
   }
 }

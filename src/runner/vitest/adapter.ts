@@ -49,6 +49,7 @@ function stripMutineerArgs(args: string[]): string[] {
     '--config',
     '-c',
     '--coverage-file',
+    '--shard',
   ])
   const dropExact = new Set([
     '-m',
