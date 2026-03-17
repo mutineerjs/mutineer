@@ -70,6 +70,7 @@ function stripMutineerArgs(args: string[]): string[] {
     }
     if (a.startsWith('--min-kill-percent=')) continue
     if (a.startsWith('--config=') || a.startsWith('-c=')) continue
+    if (a.startsWith('--shard=')) continue
     out.push(a)
   }
   return out

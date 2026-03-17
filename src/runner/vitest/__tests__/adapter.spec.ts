@@ -158,6 +158,21 @@ describe('Vitest adapter', () => {
     expect(argStr).toContain('--coverage.thresholds.statements=0')
   })
 
+  it('strips --shard= flag from vitest args', async () => {
+    const adapter = makeAdapter({ cliArgs: ['--shard=1/4'] })
+    spawnMock.mockImplementationOnce(() => ({
+      on: (evt: string, cb: (...a: any[]) => void) => {
+        if (evt === 'exit') cb(0)
+      },
+    }))
+    await adapter.runBaseline(['test-a'], {
+      collectCoverage: false,
+      perTestCoverage: false,
+    })
+    const args = spawnMock.mock.calls[0][1] as string[]
+    expect(args.join(' ')).not.toContain('--shard')
+  })
+
   it('detects coverage config from vitest config file', async () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'mutineer-vitest-'))
     const cfgPath = path.join(tmp, 'vitest.config.ts')
