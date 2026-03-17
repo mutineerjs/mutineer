@@ -117,8 +117,6 @@ export async function executePool(opts: PoolExecutionOptions): Promise<void> {
   async function processTask(task: MutantTask): Promise<void> {
     const { v, tests, key, directTests } = task
 
-    log.debug('Cache ' + JSON.stringify(cache))
-
     const cached = cache[key]
     if (cached) {
       progress.update(cached.status)

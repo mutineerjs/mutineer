@@ -290,6 +290,7 @@ export async function autoDiscoverTargetsAndTests(
   const directTestMap: TestMap = new Map()
   const contentCache = new Map<string, string | null>()
   const resolveCache = new Map<string, string>() // key: importer\0spec -> resolved id
+  const childrenCache = new Map<string, string[]>() // key: normalized file -> resolved child abs paths
 
   async function crawl(
     absFile: string,
@@ -337,26 +338,33 @@ export async function autoDiscoverTargetsAndTests(
     }
     if (!code) return
 
-    // find import specs and resolve relative to absFile
-    for (const spec of extractImportSpecs(code)) {
-      if (!spec) continue
-      const cacheKey = `${absFile}\0${spec}`
-      let resolved = resolveCache.get(cacheKey)
-      if (!resolved) {
-        resolved = await resolve(spec, absFile)
-        resolveCache.set(cacheKey, resolved)
+    // find import specs and resolve relative to absFile, memoized per file
+    let children = childrenCache.get(key)
+    if (children === undefined) {
+      const resolved: string[] = []
+      for (const spec of extractImportSpecs(code)) {
+        if (!spec) continue
+        const cacheKey = `${absFile}\0${spec}`
+        let resolvedId = resolveCache.get(cacheKey)
+        if (!resolvedId) {
+          resolvedId = await resolve(spec, absFile)
+          resolveCache.set(cacheKey, resolvedId)
+        }
+        // vite ids could be URLs; ensure we turn into absolute disk path when possible
+        const next = path.isAbsolute(resolvedId)
+          ? resolvedId
+          : normalizePath(path.resolve(rootAbs, resolvedId))
+        // skip node_modules and virtual ids
+        if (next.includes('/node_modules/')) continue
+        if (!path.isAbsolute(next)) continue
+        resolved.push(next)
       }
-
-      // vite ids could be URLs; ensure we turn into absolute disk path when possible
-      const next = path.isAbsolute(resolved)
-        ? resolved
-        : normalizePath(path.resolve(rootAbs, resolved))
-      // skip node_modules and virtual ids
-      if (next.includes('/node_modules/')) continue
-      if (!path.isAbsolute(next)) continue
-
-      await crawl(next, depth + 1, seen, currentTestAbs)
+      childrenCache.set(key, resolved)
+      children = resolved
     }
+    await Promise.all(
+      children.map((next) => crawl(next, depth + 1, seen, currentTestAbs)),
+    )
   }
 
   try {

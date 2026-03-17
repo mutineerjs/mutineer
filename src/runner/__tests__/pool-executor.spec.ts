@@ -475,6 +475,33 @@ describe('executePool', () => {
     expect(cache['cache-key-3'].mutatedSnippet).toBe('const x = a / b')
   })
 
+  it('does not eagerly JSON.stringify cache on every task (only once for save)', async () => {
+    const adapter = makeAdapter()
+    const cache: Record<string, MutantCacheEntry> = {}
+    const stringifySpy = vi.spyOn(JSON, 'stringify')
+
+    // 3 tasks — if stringify(cache) ran per-task it would be called 3 times with cache
+    await executePool({
+      tasks: [
+        makeTask({ key: 'k1' }),
+        makeTask({ key: 'k2' }),
+        makeTask({ key: 'k3' }),
+      ],
+      adapter,
+      cache,
+      concurrency: 1,
+      progressMode: 'list',
+      cwd: tmpDir,
+    })
+
+    // saveCacheAtomic calls stringify(cache) exactly once; per-task eager call was removed
+    const cacheStringifyCalls = stringifySpy.mock.calls.filter(
+      (args) => args[0] === cache,
+    )
+    expect(cacheStringifyCalls.length).toBe(1)
+    stringifySpy.mockRestore()
+  })
+
   it('handles adapter errors gracefully and still shuts down', async () => {
     const adapter = makeAdapter({
       runMutant: vi.fn().mockRejectedValue(new Error('adapter failure')),
