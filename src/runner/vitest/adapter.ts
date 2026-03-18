@@ -49,6 +49,7 @@ function stripMutineerArgs(args: string[]): string[] {
     '--config',
     '-c',
     '--coverage-file',
+    '--shard',
   ])
   const dropExact = new Set([
     '-m',
@@ -69,6 +70,7 @@ function stripMutineerArgs(args: string[]): string[] {
     }
     if (a.startsWith('--min-kill-percent=')) continue
     if (a.startsWith('--config=') || a.startsWith('-c=')) continue
+    if (a.startsWith('--shard=')) continue
     out.push(a)
   }
   return out
@@ -255,14 +257,15 @@ export class VitestAdapter implements TestRunnerAdapter {
   }
 
   hasCoverageProvider(): boolean {
-    try {
-      require.resolve('@vitest/coverage-v8/package.json', {
-        paths: [this.options.cwd],
-      })
-      return true
-    } catch {
-      return false
-    }
+    const packages = ['@vitest/coverage-v8', '@vitest/coverage-istanbul']
+    return packages.some((pkg) => {
+      try {
+        require.resolve(`${pkg}/package.json`, { paths: [this.options.cwd] })
+        return true
+      } catch {
+        return false
+      }
+    })
   }
 
   async detectCoverageConfig(): Promise<CoverageConfig> {

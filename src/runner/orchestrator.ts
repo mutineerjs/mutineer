@@ -52,7 +52,7 @@ export async function runOrchestrator(cliArgs: string[], cwd: string) {
   const cfg = await loadMutineerConfig(cwd, cfgPath)
   const opts = parseCliOptions(cliArgs, cfg)
 
-  await clearCacheOnStart(cwd)
+  await clearCacheOnStart(cwd, opts.shard)
 
   // Create test runner adapter
   const adapter = (
@@ -93,7 +93,7 @@ export async function runOrchestrator(cliArgs: string[], cwd: string) {
       : null
 
   // 4. Discover targets and tests
-  const cache = await readMutantCache(cwd)
+  const cache = await readMutantCache(cwd, opts.shard)
   log.info('Discovering tests...')
   const discovered = await autoDiscoverTargetsAndTests(cwd, cfg, (msg) =>
     log.info(msg),
@@ -189,11 +189,22 @@ export async function runOrchestrator(cliArgs: string[], cwd: string) {
   }
 
   // 8. Prepare tasks and execute via worker pool
-  const tasks = prepareTasks(
+  let tasks = prepareTasks(
     variants,
     updatedCoverage.perTestCoverage,
     directTestMap,
   )
+
+  // Apply shard filter if requested
+  if (opts.shard) {
+    const { index, total } = opts.shard
+    tasks = tasks.filter((_, i) => i % total === index - 1)
+    log.info(`Shard ${index}/${total}: running ${tasks.length} mutant(s)`)
+    if (tasks.length === 0) {
+      log.info('No mutants assigned to this shard. Exiting.')
+      return
+    }
+  }
 
   await executePool({
     tasks,
@@ -204,5 +215,6 @@ export async function runOrchestrator(cliArgs: string[], cwd: string) {
     minKillPercent: opts.minKillPercent,
     reportFormat: opts.reportFormat,
     cwd,
+    shard: opts.shard,
   })
 }

@@ -51,4 +51,46 @@ describe('cleanupMutineerDirs', () => {
     const stat = await fs.stat(srcDir)
     expect(stat.isDirectory()).toBe(true)
   })
+
+  it('does not remove cache files by default', async () => {
+    const cacheFile = path.join(tmpDir, '.mutineer-cache.json')
+    await fs.writeFile(cacheFile, '{}')
+
+    await cleanupMutineerDirs(tmpDir)
+
+    await expect(fs.access(cacheFile)).resolves.toBeUndefined()
+  })
+
+  it('removes .mutineer-cache*.json files when includeCacheFiles is true', async () => {
+    const cacheFile = path.join(tmpDir, '.mutineer-cache.json')
+    const shardFile = path.join(tmpDir, '.mutineer-cache-shard-1-of-2.json')
+    await fs.writeFile(cacheFile, '{}')
+    await fs.writeFile(shardFile, '{}')
+
+    await cleanupMutineerDirs(tmpDir, { includeCacheFiles: true })
+
+    await expect(fs.access(cacheFile)).rejects.toThrow()
+    await expect(fs.access(shardFile)).rejects.toThrow()
+  })
+
+  it('removes legacy .mutate-cache*.json files for migration when includeCacheFiles is true', async () => {
+    const legacyCache = path.join(tmpDir, '.mutate-cache.json')
+    const legacyShard = path.join(tmpDir, '.mutate-cache-shard-2-of-4.json')
+    await fs.writeFile(legacyCache, '{}')
+    await fs.writeFile(legacyShard, '{}')
+
+    await cleanupMutineerDirs(tmpDir, { includeCacheFiles: true })
+
+    await expect(fs.access(legacyCache)).rejects.toThrow()
+    await expect(fs.access(legacyShard)).rejects.toThrow()
+  })
+
+  it('removes .mutineer-cache*.json.tmp temp files when includeCacheFiles is true', async () => {
+    const tmpFile = path.join(tmpDir, '.mutineer-cache.json.tmp')
+    await fs.writeFile(tmpFile, '{}')
+
+    await cleanupMutineerDirs(tmpDir, { includeCacheFiles: true })
+
+    await expect(fs.access(tmpFile)).rejects.toThrow()
+  })
 })

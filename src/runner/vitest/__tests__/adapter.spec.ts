@@ -158,6 +158,21 @@ describe('Vitest adapter', () => {
     expect(argStr).toContain('--coverage.thresholds.statements=0')
   })
 
+  it('strips --shard= flag from vitest args', async () => {
+    const adapter = makeAdapter({ cliArgs: ['--shard=1/4'] })
+    spawnMock.mockImplementationOnce(() => ({
+      on: (evt: string, cb: (...a: any[]) => void) => {
+        if (evt === 'exit') cb(0)
+      },
+    }))
+    await adapter.runBaseline(['test-a'], {
+      collectCoverage: false,
+      perTestCoverage: false,
+    })
+    const args = spawnMock.mock.calls[0][1] as string[]
+    expect(args.join(' ')).not.toContain('--shard')
+  })
+
   it('detects coverage config from vitest config file', async () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'mutineer-vitest-'))
     const cfgPath = path.join(tmp, 'vitest.config.ts')
@@ -177,6 +192,33 @@ describe('Vitest adapter', () => {
     } finally {
       await fs.rm(tmp, { recursive: true, force: true })
     }
+  })
+})
+
+describe('hasCoverageProvider', () => {
+  it('returns true when @vitest/coverage-v8 is resolvable', () => {
+    const adapter = makeAdapter({ cwd: process.cwd() })
+    // coverage-v8 is installed as a devDependency, so this must resolve
+    expect(adapter.hasCoverageProvider()).toBe(true)
+  })
+
+  it('returns false when neither provider is resolvable', () => {
+    const adapter = makeAdapter({ cwd: '/tmp' })
+    expect(adapter.hasCoverageProvider()).toBe(false)
+  })
+
+  it('returns true when @vitest/coverage-istanbul is resolvable', () => {
+    const adapter = makeAdapter({ cwd: process.cwd() })
+    const origResolve = require.resolve
+    const resolveStub = vi
+      .spyOn(require, 'resolve')
+      .mockImplementation((id: string, opts?: any) => {
+        if (String(id).includes('coverage-v8')) throw new Error('not found')
+        if (String(id).includes('coverage-istanbul')) return '/fake/path'
+        return origResolve(id, opts)
+      })
+    expect(adapter.hasCoverageProvider()).toBe(true)
+    resolveStub.mockRestore()
   })
 })
 

@@ -28,6 +28,7 @@ export interface PoolExecutionOptions {
   minKillPercent?: number
   reportFormat?: 'text' | 'json'
   cwd: string
+  shard?: { index: number; total: number }
 }
 
 /**
@@ -56,7 +57,10 @@ export async function executePool(opts: PoolExecutionOptions): Promise<void> {
     const summary = computeSummary(cache)
     if (opts.reportFormat === 'json') {
       const report = buildJsonReport(summary, cache, durationMs)
-      const outPath = path.join(opts.cwd, 'mutineer-report.json')
+      const shardSuffix = opts.shard
+        ? `-shard-${opts.shard.index}-of-${opts.shard.total}`
+        : ''
+      const outPath = path.join(opts.cwd, `mutineer-report${shardSuffix}.json`)
       fs.writeFileSync(outPath, JSON.stringify(report, null, 2))
       log.info(
         `JSON report written to ${path.relative(process.cwd(), outPath)}`,
@@ -215,7 +219,7 @@ export async function executePool(opts: PoolExecutionOptions): Promise<void> {
   try {
     for (let i = 0; i < workerCount; i++) workers.push(worker())
     await Promise.all(workers)
-    await saveCacheAtomic(cwd, cache)
+    await saveCacheAtomic(cwd, cache, opts.shard)
   } finally {
     process.removeAllListeners('SIGINT')
     process.removeAllListeners('SIGTERM')

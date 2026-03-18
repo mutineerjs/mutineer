@@ -9,6 +9,7 @@ import {
   keyForTests,
   hash,
   readMutantCache,
+  getCacheFilename,
 } from '../cache.js'
 
 let tmpDir: string
@@ -21,9 +22,25 @@ afterEach(async () => {
   await fs.rm(tmpDir, { recursive: true, force: true })
 })
 
+describe('getCacheFilename', () => {
+  it('returns default filename when no shard', () => {
+    expect(getCacheFilename()).toBe('.mutineer-cache.json')
+    expect(getCacheFilename(undefined)).toBe('.mutineer-cache.json')
+  })
+
+  it('returns shard-namespaced filename when shard provided', () => {
+    expect(getCacheFilename({ index: 1, total: 2 })).toBe(
+      '.mutineer-cache-shard-1-of-2.json',
+    )
+    expect(getCacheFilename({ index: 3, total: 4 })).toBe(
+      '.mutineer-cache-shard-3-of-4.json',
+    )
+  })
+})
+
 describe('clearCacheOnStart', () => {
   it('removes the cache file if it exists', async () => {
-    const cacheFile = path.join(tmpDir, '.mutate-cache.json')
+    const cacheFile = path.join(tmpDir, '.mutineer-cache.json')
     await fs.writeFile(cacheFile, '{}')
     await clearCacheOnStart(tmpDir)
     await expect(fs.access(cacheFile)).rejects.toThrow()
@@ -31,6 +48,21 @@ describe('clearCacheOnStart', () => {
 
   it('does not throw if cache file does not exist', async () => {
     await expect(clearCacheOnStart(tmpDir)).resolves.toBeUndefined()
+  })
+
+  it('removes shard-specific cache file', async () => {
+    const shardFile = path.join(tmpDir, '.mutineer-cache-shard-1-of-2.json')
+    await fs.writeFile(shardFile, '{}')
+    await clearCacheOnStart(tmpDir, { index: 1, total: 2 })
+    await expect(fs.access(shardFile)).rejects.toThrow()
+  })
+
+  it('does not remove default cache when shard is specified', async () => {
+    const defaultFile = path.join(tmpDir, '.mutineer-cache.json')
+    await fs.writeFile(defaultFile, '{}')
+    await clearCacheOnStart(tmpDir, { index: 1, total: 2 })
+    // default file should still exist
+    await expect(fs.access(defaultFile)).resolves.toBeUndefined()
   })
 })
 
@@ -47,7 +79,7 @@ describe('saveCacheAtomic', () => {
     }
     await saveCacheAtomic(tmpDir, cache)
     const content = await fs.readFile(
-      path.join(tmpDir, '.mutate-cache.json'),
+      path.join(tmpDir, '.mutineer-cache.json'),
       'utf8',
     )
     expect(JSON.parse(content)).toEqual(cache)
@@ -66,10 +98,32 @@ describe('saveCacheAtomic', () => {
     }
     await saveCacheAtomic(tmpDir, newCache)
     const content = await fs.readFile(
-      path.join(tmpDir, '.mutate-cache.json'),
+      path.join(tmpDir, '.mutineer-cache.json'),
       'utf8',
     )
     expect(JSON.parse(content)).toEqual(newCache)
+  })
+
+  it('writes to shard-named file when shard is provided', async () => {
+    const cache = {
+      k: {
+        status: 'killed' as const,
+        file: 'x.ts',
+        line: 1,
+        col: 0,
+        mutator: 'm',
+      },
+    }
+    await saveCacheAtomic(tmpDir, cache, { index: 2, total: 3 })
+    const content = await fs.readFile(
+      path.join(tmpDir, '.mutineer-cache-shard-2-of-3.json'),
+      'utf8',
+    )
+    expect(JSON.parse(content)).toEqual(cache)
+    // default file should NOT exist
+    await expect(
+      fs.access(path.join(tmpDir, '.mutineer-cache.json')),
+    ).rejects.toThrow()
   })
 })
 
@@ -162,6 +216,29 @@ describe('readMutantCache', () => {
     expect(result).toEqual({})
   })
 
+  it('reads from shard-named file when shard is provided', async () => {
+    const cache = {
+      'k:v:f.ts:1,0:m': {
+        status: 'killed',
+        file: 'f.ts',
+        line: 1,
+        col: 0,
+        mutator: 'm',
+      },
+    }
+    await fs.writeFile(
+      path.join(tmpDir, '.mutineer-cache-shard-1-of-2.json'),
+      JSON.stringify(cache),
+    )
+    const result = await readMutantCache(tmpDir, { index: 1, total: 2 })
+    expect(result['k:v:f.ts:1,0:m'].status).toBe('killed')
+  })
+
+  it('returns empty object when shard file does not exist', async () => {
+    const result = await readMutantCache(tmpDir, { index: 2, total: 4 })
+    expect(result).toEqual({})
+  })
+
   it('reads and normalizes object-format cache entries', async () => {
     const cache = {
       'testsig:codesig:file.ts:1,0:flip': {
@@ -173,7 +250,7 @@ describe('readMutantCache', () => {
       },
     }
     await fs.writeFile(
-      path.join(tmpDir, '.mutate-cache.json'),
+      path.join(tmpDir, '.mutineer-cache.json'),
       JSON.stringify(cache),
     )
     const result = await readMutantCache(tmpDir)
@@ -191,7 +268,7 @@ describe('readMutantCache', () => {
       'testsig:codesig:file.ts:1,0:flip': 'killed',
     }
     await fs.writeFile(
-      path.join(tmpDir, '.mutate-cache.json'),
+      path.join(tmpDir, '.mutineer-cache.json'),
       JSON.stringify(cache),
     )
     const result = await readMutantCache(tmpDir)
@@ -201,10 +278,7 @@ describe('readMutantCache', () => {
   })
 
   it('returns empty object for invalid JSON', async () => {
-    await fs.writeFile(
-      path.join(tmpDir, '.mutate-cache.json'),
-      'not json',
-    )
+    await fs.writeFile(path.join(tmpDir, '.mutineer-cache.json'), 'not json')
     const result = await readMutantCache(tmpDir)
     expect(result).toEqual({})
   })
@@ -216,7 +290,7 @@ describe('readMutantCache', () => {
       },
     }
     await fs.writeFile(
-      path.join(tmpDir, '.mutate-cache.json'),
+      path.join(tmpDir, '.mutineer-cache.json'),
       JSON.stringify(cache),
     )
     const result = await readMutantCache(tmpDir)
