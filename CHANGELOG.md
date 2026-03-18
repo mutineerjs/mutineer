@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.7.0](https://github.com/mutineerjs/mutineer/compare/v0.6.0...v0.7.0) (2026-03-18)
+
+
+### Added
+
+* added more numerical based mutations ([#43](https://github.com/mutineerjs/mutineer/issues/43)) ([a577db9](https://github.com/mutineerjs/mutineer/commit/a577db97491c77f870975ad954bf397b855df541))
+* added reporter ([#42](https://github.com/mutineerjs/mutineer/issues/42)) ([c87a11f](https://github.com/mutineerjs/mutineer/commit/c87a11f92179cbb7e8d51e15d086a8d37ff330f0))
+* shard flag ([#47](https://github.com/mutineerjs/mutineer/issues/47)) ([04d9a51](https://github.com/mutineerjs/mutineer/commit/04d9a51d6a20cfb647c5d8aaf7c42d18d4ec140b))
+
+
+### Fixed
+
+* fixed coverage resolver ([0f2ac8c](https://github.com/mutineerjs/mutineer/commit/0f2ac8cff61f7439d3521096c94a3655adb46165))
+
+
+### Changed
+
+* pool log message and memoize resolved imports ([#46](https://github.com/mutineerjs/mutineer/issues/46)) ([e861ee2](https://github.com/mutineerjs/mutineer/commit/e861ee2555726010e2e3692f391cd7d09852944f))
+
 ## [0.6.0](https://github.com/mutineerjs/mutineer/compare/v0.5.1...v0.6.0) (2026-03-16)
 
 
