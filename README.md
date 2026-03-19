@@ -13,8 +13,6 @@ Mutineer is a fast, targeted mutation testing framework for JavaScript and TypeS
 
 Built for **Vitest** with first-class **Jest** support. Other test runners can be added via the adapter interface.
 
-**Author**: [Billy Jones](https://www.linkedin.com/in/billyjonesy/)
-
 ## How It Works
 
 1. **Baseline** -- runs your test suite to make sure everything passes before mutating
@@ -261,6 +259,9 @@ export function createMyRunnerAdapter(
 ```
 
 The key requirement is the **file-swap mechanism** -- the adapter needs a way to intercept module resolution so the mutated source code is loaded instead of the original file on disk. See the Vitest adapter (Vite plugin + ESM loader) and Jest adapter (custom resolver) for working reference implementations in `src/runner/vitest/` and `src/runner/jest/`.
+
+## Maintainers
+- [Billy Jones](https://www.linkedin.com/in/billyjonesy/)
 
 ## License
 
