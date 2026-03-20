@@ -7,6 +7,7 @@ export interface Summary {
   readonly killed: number
   readonly escaped: number
   readonly skipped: number
+  readonly compileErrors: number
   readonly evaluated: number
   readonly killRate: number
 }
@@ -21,10 +22,12 @@ export function computeSummary(
   let killed = 0
   let escaped = 0
   let skipped = 0
+  let compileErrors = 0
 
   for (const entry of allEntries) {
     if (entry.status === 'killed') killed++
     else if (entry.status === 'escaped') escaped++
+    else if (entry.status === 'compile-error') compileErrors++
     else skipped++
   }
 
@@ -32,7 +35,7 @@ export function computeSummary(
   const total = allEntries.length
   const killRate = evaluated === 0 ? 0 : (killed / evaluated) * 100
 
-  return { total, killed, escaped, skipped, evaluated, killRate }
+  return { total, killed, escaped, skipped, compileErrors, evaluated, killRate }
 }
 
 function formatDuration(ms: number): string {
@@ -83,12 +86,15 @@ export function printSummary(
   const entriesByStatus = {
     killed: [] as MutantCacheEntry[],
     escaped: [] as MutantCacheEntry[],
+    compileErrors: [] as MutantCacheEntry[],
     skipped: [] as MutantCacheEntry[],
   }
 
   for (const entry of allEntries) {
     if (entry.status === 'killed') entriesByStatus.killed.push(entry)
     else if (entry.status === 'escaped') entriesByStatus.escaped.push(entry)
+    else if (entry.status === 'compile-error')
+      entriesByStatus.compileErrors.push(entry)
     else entriesByStatus.skipped.push(entry)
   }
 
@@ -121,6 +127,11 @@ export function printSummary(
       }
     }
   }
+  if (entriesByStatus.compileErrors.length) {
+    console.log('\n' + chalk.dim('Compile Error Mutants (type-filtered):'))
+    for (const entry of entriesByStatus.compileErrors)
+      console.log('  ' + formatRow(entry))
+  }
   if (entriesByStatus.skipped.length) {
     console.log('\n' + chalk.dim('Skipped Mutants:'))
     for (const entry of entriesByStatus.skipped)
@@ -128,8 +139,12 @@ export function printSummary(
   }
 
   console.log('\n' + chalk.dim(SEPARATOR))
+  const compileErrorStr =
+    summary.compileErrors > 0
+      ? `, ${chalk.dim(`Compile Errors: ${summary.compileErrors}`)}`
+      : ''
   console.log(
-    `Total: ${summary.total} \u2014 ${chalk.green(`Killed: ${summary.killed}`)}, ${chalk.red(`Escaped: ${summary.escaped}`)}, ${chalk.dim(`Skipped: ${summary.skipped}`)}`,
+    `Total: ${summary.total} \u2014 ${chalk.green(`Killed: ${summary.killed}`)}, ${chalk.red(`Escaped: ${summary.escaped}`)}, ${chalk.dim(`Skipped: ${summary.skipped}`)}${compileErrorStr}`,
   )
 
   if (summary.evaluated === 0) {

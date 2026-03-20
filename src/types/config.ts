@@ -44,4 +44,16 @@ export interface MutineerConfig {
   readonly timeout?: number
   /** Output report format: 'text' (default) or 'json' (writes mutineer-report.json) */
   readonly report?: 'text' | 'json'
+  /**
+   * Enable TypeScript type checking to pre-filter mutants that produce compile errors.
+   * true = enable (requires tsconfig.json), false = disable,
+   * object = enable with optional custom tsconfig path.
+   * Defaults to auto-detect (enabled if tsconfig.json found in cwd).
+   */
+  readonly typescript?: boolean | { readonly tsconfig?: string }
+  /**
+   * Filter mutations to a specific Vitest workspace project.
+   * Requires a vitest.config.ts with test.projects configured.
+   */
+  readonly vitestProject?: string | readonly string[]
 }

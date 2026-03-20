@@ -57,6 +57,7 @@ class VitestWorker extends EventEmitter {
     id: string,
     private readonly cwd: string,
     private readonly vitestConfig?: string,
+    private readonly vitestProject?: string,
   ) {
     super()
     this.id = id
@@ -87,6 +88,9 @@ class VitestWorker extends EventEmitter {
       MUTINEER_CWD: this.cwd,
       ...(this.vitestConfig
         ? { MUTINEER_VITEST_CONFIG: this.vitestConfig }
+        : {}),
+      ...(this.vitestProject
+        ? { MUTINEER_VITEST_PROJECT: this.vitestProject }
         : {}),
       ...(DEBUG ? { MUTINEER_DEBUG: '1' } : {}),
     }
@@ -287,10 +291,11 @@ export interface VitestPoolOptions {
   cwd: string
   concurrency: number
   vitestConfig?: string
+  vitestProject?: string
   timeoutMs?: number
   createWorker?: (
     id: string,
-    opts: { cwd: string; vitestConfig?: string },
+    opts: { cwd: string; vitestConfig?: string; vitestProject?: string },
   ) => VitestWorker
 }
 
@@ -299,9 +304,10 @@ export class VitestPool {
   private availableWorkers: VitestWorker[] = []
   private waitingTasks: Array<(worker: VitestWorker) => void> = []
   private readonly options: Required<
-    Omit<VitestPoolOptions, 'vitestConfig' | 'createWorker'>
+    Omit<VitestPoolOptions, 'vitestConfig' | 'vitestProject' | 'createWorker'>
   > & {
     vitestConfig?: string
+    vitestProject?: string
     createWorker?: VitestPoolOptions['createWorker']
   }
   private initialised = false
@@ -312,6 +318,7 @@ export class VitestPool {
       cwd: options.cwd,
       concurrency: options.concurrency,
       vitestConfig: options.vitestConfig,
+      vitestProject: options.vitestProject,
       timeoutMs: options.timeoutMs ?? 10_000,
       createWorker: options.createWorker,
     }
@@ -329,8 +336,14 @@ export class VitestPool {
         this.options.createWorker?.(`w${i}`, {
           cwd: this.options.cwd,
           vitestConfig: this.options.vitestConfig,
+          vitestProject: this.options.vitestProject,
         }) ??
-        new VitestWorker(`w${i}`, this.options.cwd, this.options.vitestConfig)
+        new VitestWorker(
+          `w${i}`,
+          this.options.cwd,
+          this.options.vitestConfig,
+          this.options.vitestProject,
+        )
 
       worker.on('exit', () => {
         if (!this.shuttingDown) {
@@ -365,8 +378,14 @@ export class VitestPool {
       this.options.createWorker?.(worker.id, {
         cwd: this.options.cwd,
         vitestConfig: this.options.vitestConfig,
+        vitestProject: this.options.vitestProject,
       }) ??
-      new VitestWorker(worker.id, this.options.cwd, this.options.vitestConfig)
+      new VitestWorker(
+        worker.id,
+        this.options.cwd,
+        this.options.vitestConfig,
+        this.options.vitestProject,
+      )
 
     const idx = this.workers.indexOf(worker)
     if (idx >= 0) {

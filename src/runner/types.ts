@@ -18,6 +18,8 @@ export interface TestRunnerAdapterOptions {
   readonly timeoutMs: number
   readonly config: MutineerConfig
   readonly cliArgs: string[]
+  /** Vitest workspace project name to target (from --vitest-project or config) */
+  readonly vitestProject?: string
 }
 
 /**

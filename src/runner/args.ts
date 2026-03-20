@@ -25,6 +25,10 @@ export interface ParsedCliOptions {
   readonly timeout: number | undefined
   readonly reportFormat: 'text' | 'json'
   readonly shard: { index: number; total: number } | undefined
+  /** undefined = use config/auto-detect, true = force enable, false = force disable */
+  readonly typescriptCheck: boolean | undefined
+  /** Vitest workspace project name(s) to filter mutations to */
+  readonly vitestProject: string | undefined
 }
 
 /**
@@ -228,6 +232,14 @@ export function parseCliOptions(
 
   const shard = parseShardOption(args)
 
+  const typescriptCheck = args.includes('--typescript')
+    ? true
+    : args.includes('--no-typescript')
+      ? false
+      : undefined
+
+  const vitestProject = readStringFlag(args, '--vitest-project')
+
   return {
     configPath,
     wantsChanged,
@@ -242,5 +254,7 @@ export function parseCliOptions(
     timeout,
     reportFormat,
     shard,
+    typescriptCheck,
+    vitestProject,
   }
 }

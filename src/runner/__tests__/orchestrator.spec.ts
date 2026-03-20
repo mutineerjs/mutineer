@@ -50,6 +50,11 @@ vi.mock('../variants.js', () => ({
 vi.mock('../tasks.js', () => ({
   prepareTasks: vi.fn().mockReturnValue([]),
 }))
+vi.mock('../ts-checker.js', () => ({
+  checkTypes: vi.fn().mockResolvedValue(new Set()),
+  resolveTypescriptEnabled: vi.fn().mockReturnValue(false),
+  resolveTsconfigPath: vi.fn().mockReturnValue(undefined),
+}))
 import { runOrchestrator, parseMutantTimeoutMs } from '../orchestrator.js'
 import { loadMutineerConfig } from '../config.js'
 import { createVitestAdapter, type VitestAdapter } from '../vitest/index.js'

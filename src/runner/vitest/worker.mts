@@ -64,6 +64,7 @@ async function main(): Promise<void> {
   const workerId = process.env.MUTINEER_WORKER_ID ?? 'unknown'
   const cwd = process.env.MUTINEER_CWD ?? process.cwd()
   const vitestConfigPath = process.env.MUTINEER_VITEST_CONFIG
+  const vitestProject = process.env.MUTINEER_VITEST_PROJECT
 
   log.debug(`Starting worker ${workerId} in ${cwd}`)
 
@@ -71,6 +72,7 @@ async function main(): Promise<void> {
     workerId,
     cwd,
     vitestConfigPath,
+    vitestProject,
   })
 
   try {

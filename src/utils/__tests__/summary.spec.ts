@@ -36,6 +36,7 @@ describe('summary', () => {
       killed: 1,
       escaped: 1,
       skipped: 1,
+      compileErrors: 0,
       evaluated: 2,
       killRate: 50,
     })

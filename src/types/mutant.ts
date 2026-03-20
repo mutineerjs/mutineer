@@ -11,6 +11,7 @@ export type MutantStatus =
   | 'skipped'
   | 'error'
   | 'timeout'
+  | 'compile-error'
 export type MutantRunStatus = MutantStatus
 
 export interface MutantLocation {

@@ -171,6 +171,7 @@ export class VitestAdapter implements TestRunnerAdapter {
       cwd: this.options.cwd,
       concurrency: workerCount,
       vitestConfig: this.options.config.vitestConfig,
+      vitestProject: this.options.vitestProject,
       timeoutMs: this.options.timeoutMs,
     })
     await this.pool.init()

@@ -31,6 +31,11 @@ import {
 } from './coverage-resolver.js'
 import { prepareTasks } from './tasks.js'
 import { executePool } from './pool-executor.js'
+import {
+  checkTypes,
+  resolveTypescriptEnabled,
+  resolveTsconfigPath,
+} from './ts-checker.js'
 
 const log = createLogger('orchestrator')
 
@@ -55,6 +60,10 @@ export async function runOrchestrator(cliArgs: string[], cwd: string) {
   await clearCacheOnStart(cwd, opts.shard)
 
   // Create test runner adapter
+  const vitestProject =
+    opts.vitestProject ??
+    (typeof cfg.vitestProject === 'string' ? cfg.vitestProject : undefined)
+
   const adapter = (
     opts.runner === 'jest' ? createJestAdapter : createVitestAdapter
   )({
@@ -63,6 +72,7 @@ export async function runOrchestrator(cliArgs: string[], cwd: string) {
     timeoutMs: opts.timeout ?? cfg.timeout ?? MUTANT_TIMEOUT_MS,
     config: cfg,
     cliArgs,
+    vitestProject,
   })
 
   // 2. Resolve coverage configuration
@@ -188,9 +198,49 @@ export async function runOrchestrator(cliArgs: string[], cwd: string) {
     return
   }
 
-  // 8. Prepare tasks and execute via worker pool
+  // TypeScript pre-filtering (filter mutants that produce compile errors)
+  const tsEnabled = resolveTypescriptEnabled(opts.typescriptCheck, cfg, cwd)
+  let runnableVariants = variants
+  if (tsEnabled) {
+    // Only return-value mutants change the expression type — operator mutants
+    // (equality, arithmetic, logical, etc.) always preserve the type.
+    const returnValueVariants = variants.filter((v) =>
+      v.name.startsWith('return'),
+    )
+    log.info(
+      `Running TypeScript type checks on ${returnValueVariants.length} return-value mutant(s)...`,
+    )
+    const tsconfig = resolveTsconfigPath(cfg)
+    const compileErrorIds = await checkTypes(returnValueVariants, tsconfig, cwd)
+    if (compileErrorIds.size > 0) {
+      log.info(
+        `TypeScript: filtered ${compileErrorIds.size} mutant(s) with compile errors`,
+      )
+      runnableVariants = variants.filter((v) => !compileErrorIds.has(v.id))
+      // Pre-populate cache for compile-error mutants so they appear in summary
+      const compileErrorVariants = variants.filter((v) =>
+        compileErrorIds.has(v.id),
+      )
+      const compileErrorTasks = prepareTasks(
+        compileErrorVariants,
+        updatedCoverage.perTestCoverage,
+        directTestMap,
+      )
+      for (const task of compileErrorTasks) {
+        cache[task.key] = {
+          status: 'compile-error',
+          file: task.v.file,
+          line: task.v.line,
+          col: task.v.col,
+          mutator: task.v.name,
+        }
+      }
+    }
+  }
+
+  // 9. Prepare tasks and execute via worker pool
   let tasks = prepareTasks(
-    variants,
+    runnableVariants,
     updatedCoverage.perTestCoverage,
     directTestMap,
   )

@@ -19,6 +19,7 @@ export interface VitestWorkerRuntimeOptions {
   workerId: string
   cwd: string
   vitestConfigPath?: string
+  vitestProject?: string
 }
 
 export class VitestWorkerRuntime {
@@ -80,9 +81,10 @@ export class VitestWorkerRuntime {
       log.debug(`Invalidated ${mutant.file}`)
 
       const specs: TestSpecification[] = []
+      const projectName = this.options.vitestProject ?? ''
       for (const testFile of tests) {
         const spec = this.vitest
-          .getProjectByName('')
+          .getProjectByName(projectName)
           ?.createSpecification(testFile)
         if (spec) specs.push(spec)
       }
@@ -119,9 +121,8 @@ export class VitestWorkerRuntime {
         error: err instanceof Error ? err.message : String(err),
       }
     } finally {
-      // Clear redirect and clean up temp file
-      const mutantPath = getMutantFilePath(mutant.file, mutant.id)
       clearRedirect()
+      const mutantPath = getMutantFilePath(mutant.file, mutant.id)
       try {
         fs.rmSync(mutantPath, { force: true })
       } catch {
