@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.0](https://github.com/mutineerjs/mutineer/compare/v0.8.0...v0.9.0) (2026-03-23)
+
+
+### Added
+
+* added --full flag ([#54](https://github.com/mutineerjs/mutineer/issues/54)) ([c9d7a8c](https://github.com/mutineerjs/mutineer/commit/c9d7a8cda84c20aa2a51cb192f50c5ec4cba4b0b))
+
 ## [0.8.0](https://github.com/mutineerjs/mutineer/compare/v0.7.0...v0.8.0) (2026-03-23)
 
 
