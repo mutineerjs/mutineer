@@ -73,6 +73,67 @@ describe('Jest adapter', () => {
     expect(args.config).toBe('jest.config.ts')
   })
 
+  it('does not write captured output to stdout/stderr on success', async () => {
+    const adapter = makeAdapter()
+    const stdoutWrite = vi.spyOn(process.stdout, 'write').mockReturnValue(true)
+    const stderrWrite = vi.spyOn(process.stderr, 'write').mockReturnValue(true)
+    runCLIMock.mockResolvedValueOnce({ results: { success: true } })
+
+    const ok = await adapter.runBaseline(['test-a'], {
+      collectCoverage: false,
+      perTestCoverage: false,
+    })
+
+    expect(ok).toBe(true)
+    // No output should be replayed on success
+    expect(stdoutWrite).not.toHaveBeenCalled()
+    expect(stderrWrite).not.toHaveBeenCalled()
+    stdoutWrite.mockRestore()
+    stderrWrite.mockRestore()
+  })
+
+  it('replays captured output to stdout/stderr on failure', async () => {
+    const adapter = makeAdapter()
+
+    // Spy before runBaseline so adapter's origStdoutWrite/origStderrWrite bind to the spy.
+    // runCLI writes during capture are suppressed; the spy sees only the replay after restore.
+    const writtenStdout: string[] = []
+    const writtenStderr: string[] = []
+    const stdoutSpy = vi
+      .spyOn(process.stdout, 'write')
+      .mockImplementation((chunk: any) => {
+        writtenStdout.push(
+          Buffer.isBuffer(chunk) ? chunk.toString() : String(chunk),
+        )
+        return true
+      })
+    const stderrSpy = vi
+      .spyOn(process.stderr, 'write')
+      .mockImplementation((chunk: any) => {
+        writtenStderr.push(
+          Buffer.isBuffer(chunk) ? chunk.toString() : String(chunk),
+        )
+        return true
+      })
+
+    runCLIMock.mockImplementationOnce(async () => {
+      process.stdout.write('jest stdout output')
+      process.stderr.write('jest stderr output')
+      return { results: { success: false } }
+    })
+
+    const ok = await adapter.runBaseline(['test-a'], {
+      collectCoverage: false,
+      perTestCoverage: false,
+    })
+
+    expect(ok).toBe(false)
+    expect(writtenStdout.join('')).toContain('jest stdout output')
+    expect(writtenStderr.join('')).toContain('jest stderr output')
+    stdoutSpy.mockRestore()
+    stderrSpy.mockRestore()
+  })
+
   it('maps pool result to mutant status', async () => {
     const adapter = makeAdapter()
     await adapter.init()

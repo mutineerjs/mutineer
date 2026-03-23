@@ -173,6 +173,77 @@ describe('Vitest adapter', () => {
     expect(args.join(' ')).not.toContain('--shard')
   })
 
+  it('does not write captured output to stdout/stderr on success', async () => {
+    const adapter = makeAdapter({ cliArgs: [] })
+    const stdoutWrite = vi.spyOn(process.stdout, 'write').mockReturnValue(true)
+    const stderrWrite = vi.spyOn(process.stderr, 'write').mockReturnValue(true)
+    const listeners: Record<string, ((...a: any[]) => void)[]> = {}
+    spawnMock.mockImplementationOnce(() => ({
+      stdout: {
+        on: (evt: string, cb: (...a: any[]) => void) => {
+          ;(listeners[`stdout:${evt}`] ??= []).push(cb)
+        },
+      },
+      stderr: {
+        on: (evt: string, cb: (...a: any[]) => void) => {
+          ;(listeners[`stderr:${evt}`] ??= []).push(cb)
+        },
+      },
+      on: (evt: string, cb: (...a: any[]) => void) => {
+        if (evt === 'exit') cb(0)
+      },
+    }))
+
+    const ok = await adapter.runBaseline(['test-a'], {
+      collectCoverage: false,
+      perTestCoverage: false,
+    })
+
+    expect(ok).toBe(true)
+    expect(stdoutWrite).not.toHaveBeenCalled()
+    expect(stderrWrite).not.toHaveBeenCalled()
+    stdoutWrite.mockRestore()
+    stderrWrite.mockRestore()
+  })
+
+  it('replays captured output to stdout/stderr on failure', async () => {
+    const adapter = makeAdapter({ cliArgs: [] })
+    const stdoutWrite = vi.spyOn(process.stdout, 'write').mockReturnValue(true)
+    const stderrWrite = vi.spyOn(process.stderr, 'write').mockReturnValue(true)
+    const stdoutListeners: ((chunk: Buffer) => void)[] = []
+    const stderrListeners: ((chunk: Buffer) => void)[] = []
+    spawnMock.mockImplementationOnce(() => ({
+      stdout: {
+        on: (evt: string, cb: (chunk: Buffer) => void) => {
+          if (evt === 'data') stdoutListeners.push(cb)
+        },
+      },
+      stderr: {
+        on: (evt: string, cb: (chunk: Buffer) => void) => {
+          if (evt === 'data') stderrListeners.push(cb)
+        },
+      },
+      on: (evt: string, cb: (...a: any[]) => void) => {
+        if (evt === 'exit') {
+          stdoutListeners.forEach((l) => l(Buffer.from('stdout output')))
+          stderrListeners.forEach((l) => l(Buffer.from('stderr output')))
+          cb(1)
+        }
+      },
+    }))
+
+    const ok = await adapter.runBaseline(['test-a'], {
+      collectCoverage: false,
+      perTestCoverage: false,
+    })
+
+    expect(ok).toBe(false)
+    expect(stdoutWrite).toHaveBeenCalledWith(Buffer.from('stdout output'))
+    expect(stderrWrite).toHaveBeenCalledWith(Buffer.from('stderr output'))
+    stdoutWrite.mockRestore()
+    stderrWrite.mockRestore()
+  })
+
   it('detects coverage config from vitest config file', async () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'mutineer-vitest-'))
     const cfgPath = path.join(tmp, 'vitest.config.ts')

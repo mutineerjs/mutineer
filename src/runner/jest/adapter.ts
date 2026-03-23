@@ -147,17 +147,48 @@ export class JestAdapter implements TestRunnerAdapter {
       : 'baseline'
     const cliOptions = buildJestCliOptions(tests, mode, this.jestConfigPath)
 
+    const stdoutChunks: Buffer[] = []
+    const stderrChunks: Buffer[] = []
+    const origStdoutWrite = process.stdout.write.bind(process.stdout)
+    const origStderrWrite = process.stderr.write.bind(process.stderr)
+    // Temporarily capture stdout/stderr so Jest output is suppressed during baseline;
+    // captured output is replayed below on failure.
+    const makeCapture = (chunks: Buffer[]): typeof process.stdout.write =>
+      function (chunk, encodingOrCb?, cb?) {
+        chunks.push(
+          Buffer.isBuffer(chunk)
+            ? Buffer.from(chunk)
+            : Buffer.from(chunk as string),
+        )
+        const callback = (
+          typeof encodingOrCb === 'function' ? encodingOrCb : cb
+        ) as ((err?: Error | null) => void) | undefined
+        callback?.()
+        return true
+      }
+    process.stdout.write = makeCapture(stdoutChunks)
+    process.stderr.write = makeCapture(stderrChunks)
+
+    let success = false
     try {
       const { runCLI } = await loadRunCLI(this.requireFromCwd)
       const { results } = await runCLI(cliOptions, [this.options.cwd])
-      return results.success
+      success = results.success
     } catch (err) {
       log.debug(
         'Failed to run Jest baseline: ' +
           (err instanceof Error ? err.message : String(err)),
       )
-      return false
+    } finally {
+      process.stdout.write = origStdoutWrite
+      process.stderr.write = origStderrWrite
     }
+
+    if (!success) {
+      if (stdoutChunks.length) process.stdout.write(Buffer.concat(stdoutChunks))
+      if (stderrChunks.length) process.stderr.write(Buffer.concat(stderrChunks))
+    }
+    return success
   }
 
   async runMutant(

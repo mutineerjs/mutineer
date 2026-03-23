@@ -196,10 +196,15 @@ export class VitestAdapter implements TestRunnerAdapter {
         [this.vitestPath, ...args, ...tests],
         {
           cwd: this.options.cwd,
-          stdio: ['ignore', 'inherit', 'inherit'],
+          stdio: ['ignore', 'pipe', 'pipe'],
           env,
         },
       )
+
+      const stdoutChunks: Buffer[] = []
+      const stderrChunks: Buffer[] = []
+      child.stdout?.on('data', (chunk: Buffer) => stdoutChunks.push(chunk))
+      child.stderr?.on('data', (chunk: Buffer) => stderrChunks.push(chunk))
 
       child.on('error', (err: Error) => {
         log.debug('Failed to spawn vitest process: ' + err.message)
@@ -207,6 +212,12 @@ export class VitestAdapter implements TestRunnerAdapter {
       })
 
       child.on('exit', (code: number | null) => {
+        if (code !== 0) {
+          if (stdoutChunks.length)
+            process.stdout.write(Buffer.concat(stdoutChunks))
+          if (stderrChunks.length)
+            process.stderr.write(Buffer.concat(stderrChunks))
+        }
         resolve(code === 0)
       })
     })
