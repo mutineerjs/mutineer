@@ -93,23 +93,26 @@ npm run mutineer
 
 ### CLI Options (for `mutineer run`)
 
-| Flag                     | Description                                                     | Default       |
-| ------------------------ | --------------------------------------------------------------- | ------------- |
-| `--runner <type>`        | Test runner: `vitest` or `jest`                                 | `vitest`      |
-| `--config`, `-c`         | Path to config file                                             | auto-detected |
-| `--concurrency <n>`      | Parallel workers (min 1)                                        | CPUs - 1      |
-| `--changed`              | Only mutate files changed vs base branch                        | --            |
-| `--changed-with-deps`    | Include dependents of changed files                             | --            |
-| `--full`                 | Mutate full codebase, skipping confirmation prompt              | --            |
-| `--only-covered-lines`   | Skip mutations on uncovered lines                               | --            |
-| `--per-test-coverage`    | Run only tests that cover the mutated line                      | --            |
-| `--coverage-file <path>` | Path to Istanbul coverage JSON                                  | auto-detected |
-| `--min-kill-percent <n>` | Fail if kill rate is below threshold                            | --            |
-| `--progress <mode>`      | Display mode: `bar`, `list`, or `quiet`                         | `bar`         |
-| `--timeout <ms>`         | Per-mutant test timeout                                         | `30000`       |
-| `--report <format>`      | Output format: `text` or `json` (writes `mutineer-report.json`) | `text`        |
-| `--shard <n>/<total>`    | Run a slice of mutants (e.g. `--shard 1/4`)                     | --            |
-| `--skip-baseline`        | Skip the baseline test run                                      | --            |
+| Flag                      | Description                                                                          | Default       |
+| ------------------------- | ------------------------------------------------------------------------------------ | ------------- |
+| `--runner <type>`         | Test runner: `vitest` or `jest`                                                      | `vitest`      |
+| `--config`, `-c`          | Path to config file                                                                  | auto-detected |
+| `--concurrency <n>`       | Parallel workers (min 1)                                                             | CPUs - 1      |
+| `--changed`               | Only mutate files changed vs base branch                                             | --            |
+| `--changed-with-deps`     | Include dependents of changed files                                                  | --            |
+| `--full`                  | Mutate full codebase, skipping confirmation prompt                                   | --            |
+| `--only-covered-lines`    | Skip mutations on uncovered lines                                                    | --            |
+| `--per-test-coverage`     | Run only tests that cover the mutated line                                           | --            |
+| `--coverage-file <path>`  | Path to Istanbul coverage JSON                                                       | auto-detected |
+| `--min-kill-percent <n>`  | Fail if kill rate is below threshold                                                 | --            |
+| `--progress <mode>`       | Display mode: `bar`, `list`, or `quiet`                                              | `bar`         |
+| `--timeout <ms>`          | Per-mutant test timeout                                                              | `30000`       |
+| `--report <format>`       | Output format: `text` or `json` (writes `mutineer-report.json`)                      | `text`        |
+| `--shard <n>/<total>`     | Run a slice of mutants (e.g. `--shard 1/4`)                                          | --            |
+| `--skip-baseline`         | Skip the baseline test run                                                           | --            |
+| `--vitest-project <name>` | Filter mutations to a specific Vitest workspace project (requires `test.projects`)   | --            |
+| `--typescript`            | Enable TypeScript type-check pre-filtering (skips mutants that cause compile errors) | auto          |
+| `--no-typescript`         | Disable TypeScript type-check pre-filtering                                          | --            |
 
 ### Examples
 
@@ -149,23 +152,25 @@ export default defineMutineerConfig({
 
 ### Config Options
 
-| Option              | Type                 | Description                                      |
-| ------------------- | -------------------- | ------------------------------------------------ |
-| `source`            | `string \| string[]` | Glob patterns for source files to mutate         |
-| `targets`           | `MutateTarget[]`     | Explicit list of files to mutate                 |
-| `runner`            | `'vitest' \| 'jest'` | Test runner to use                               |
-| `vitestConfig`      | `string`             | Path to vitest config                            |
-| `jestConfig`        | `string`             | Path to jest config                              |
-| `include`           | `string[]`           | Only run these mutators                          |
-| `exclude`           | `string[]`           | Skip these mutators                              |
-| `excludePaths`      | `string[]`           | Glob patterns for paths to skip                  |
-| `maxMutantsPerFile` | `number`             | Cap mutations per file                           |
-| `minKillPercent`    | `number`             | Fail if kill rate is below this                  |
-| `onlyCoveredLines`  | `boolean`            | Only mutate lines covered by tests               |
-| `perTestCoverage`   | `boolean`            | Use per-test coverage to select tests            |
-| `baseRef`           | `string`             | Git ref for `--changed` (default: `origin/main`) |
-| `testPatterns`      | `string[]`           | Globs for test file discovery                    |
-| `extensions`        | `string[]`           | File extensions to consider                      |
+| Option              | Type                               | Description                                                                  |
+| ------------------- | ---------------------------------- | ---------------------------------------------------------------------------- |
+| `source`            | `string \| string[]`               | Glob patterns for source files to mutate                                     |
+| `targets`           | `MutateTarget[]`                   | Explicit list of files to mutate                                             |
+| `runner`            | `'vitest' \| 'jest'`               | Test runner to use                                                           |
+| `vitestConfig`      | `string`                           | Path to vitest config                                                        |
+| `jestConfig`        | `string`                           | Path to jest config                                                          |
+| `include`           | `string[]`                         | Only run these mutators                                                      |
+| `exclude`           | `string[]`                         | Skip these mutators                                                          |
+| `excludePaths`      | `string[]`                         | Glob patterns for paths to skip                                              |
+| `maxMutantsPerFile` | `number`                           | Cap mutations per file                                                       |
+| `minKillPercent`    | `number`                           | Fail if kill rate is below this                                              |
+| `onlyCoveredLines`  | `boolean`                          | Only mutate lines covered by tests                                           |
+| `perTestCoverage`   | `boolean`                          | Use per-test coverage to select tests                                        |
+| `baseRef`           | `string`                           | Git ref for `--changed` (default: `origin/main`)                             |
+| `testPatterns`      | `string[]`                         | Globs for test file discovery                                                |
+| `extensions`        | `string[]`                         | File extensions to consider                                                  |
+| `vitestProject`     | `string \| string[]`               | Filter to a specific Vitest workspace project                                |
+| `typescript`        | `boolean \| { tsconfig?: string }` | Enable TS type-check pre-filtering; auto-detected if `tsconfig.json` present |
 
 ## Recommended Workflow
 
