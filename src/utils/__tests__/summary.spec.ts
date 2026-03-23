@@ -163,6 +163,101 @@ describe('summary', () => {
     logSpy.mockRestore()
   })
 
+  it('suppresses passingTests block when skipPassingTests is true', () => {
+    const cache = {
+      a: makeEntry({
+        status: 'escaped',
+        passingTests: ['Suite > test one'],
+      }),
+    }
+    const summary = computeSummary(cache)
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    printSummary(summary, cache, undefined, { skipPassingTests: true })
+
+    const lines = logSpy.mock.calls.map((c) => stripAnsi(c.join(' ')))
+    expect(lines.some((l) => l.includes('Passed without catching'))).toBe(false)
+    expect(lines.some((l) => l.includes('Suite > test one'))).toBe(false)
+
+    logSpy.mockRestore()
+  })
+
+  it('prints passingTests block for escaped mutant', () => {
+    const cache = {
+      a: makeEntry({
+        status: 'escaped',
+        passingTests: ['Suite > test one', 'Suite > test two'],
+      }),
+    }
+    const summary = computeSummary(cache)
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    printSummary(summary, cache)
+
+    const lines = logSpy.mock.calls.map((c) => stripAnsi(c.join(' ')))
+    expect(lines.some((l) => l.includes('Passed without catching'))).toBe(true)
+    expect(lines.some((l) => l.includes('Suite > test one'))).toBe(true)
+    expect(lines.some((l) => l.includes('Suite > test two'))).toBe(true)
+
+    logSpy.mockRestore()
+  })
+
+  it('caps passingTests display at 5 and shows overflow count', () => {
+    const cache = {
+      a: makeEntry({
+        status: 'escaped',
+        passingTests: ['t1', 't2', 't3', 't4', 't5', 't6', 't7'],
+      }),
+    }
+    const summary = computeSummary(cache)
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    printSummary(summary, cache)
+
+    const lines = logSpy.mock.calls.map((c) => stripAnsi(c.join(' ')))
+    expect(lines.some((l) => l.includes('t5'))).toBe(true)
+    expect(lines.some((l) => l.includes('t6'))).toBe(false)
+    expect(lines.some((l) => l.includes('+2 more'))).toBe(true)
+
+    logSpy.mockRestore()
+  })
+
+  it('does not print passingTests block when absent', () => {
+    const cache = {
+      a: makeEntry({ status: 'escaped' }),
+    }
+    const summary = computeSummary(cache)
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    printSummary(summary, cache)
+
+    const lines = logSpy.mock.calls.map((c) => stripAnsi(c.join(' ')))
+    expect(lines.some((l) => l.includes('Passed without catching'))).toBe(false)
+
+    logSpy.mockRestore()
+  })
+
+  it('buildJsonReport includes passingTests when present', () => {
+    const cache = {
+      a: makeEntry({
+        status: 'escaped',
+        file: '/tmp/a.ts',
+        mutator: 'flip',
+        passingTests: ['Suite > test one'],
+      }),
+    }
+    const summary = computeSummary(cache)
+    const report = buildJsonReport(summary, cache)
+    expect(report.mutants[0].passingTests).toEqual(['Suite > test one'])
+  })
+
+  it('buildJsonReport omits passingTests when absent', () => {
+    const cache = { a: makeEntry({ status: 'escaped' }) }
+    const summary = computeSummary(cache)
+    const report = buildJsonReport(summary, cache)
+    expect('passingTests' in report.mutants[0]).toBe(false)
+  })
+
   it('does not print covering tests when array is absent', () => {
     const cache = {
       a: makeEntry({ status: 'escaped' }),

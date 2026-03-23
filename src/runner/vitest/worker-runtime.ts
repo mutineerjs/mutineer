@@ -149,9 +149,27 @@ export class VitestWorkerRuntime {
         (mod: { ok: () => boolean }) => !mod.ok(),
       )
 
+      const passingTests: string[] = []
+      if (!killed) {
+        for (const mod of modulesForDecision as Array<{
+          children?: {
+            allTests(state: 'passed'): Iterable<{ fullName: string }>
+          }
+        }>) {
+          try {
+            for (const tc of mod.children?.allTests('passed') ?? []) {
+              passingTests.push(tc.fullName)
+            }
+          } catch {
+            // allTests API unavailable in this Vitest version
+          }
+        }
+      }
+
       return {
         killed,
         durationMs: Date.now() - start,
+        ...(passingTests.length > 0 && { passingTests }),
       }
     } catch (err) {
       return {

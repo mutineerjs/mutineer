@@ -38,6 +38,7 @@ interface WorkerMessage {
   durationMs?: number
   error?: string
   ok?: boolean
+  passingTests?: string[]
 }
 
 interface PendingTask {
@@ -200,6 +201,7 @@ class VitestWorker extends EventEmitter {
           killed: msg.killed ?? true,
           durationMs: msg.durationMs ?? 0,
           error: msg.error,
+          ...(msg.passingTests && { passingTests: msg.passingTests }),
         })
       }
       return

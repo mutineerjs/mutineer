@@ -43,6 +43,7 @@ export interface MutantCacheEntry extends MutantLocation {
   readonly originalSnippet?: string
   readonly mutatedSnippet?: string
   readonly coveringTests?: readonly string[]
+  readonly passingTests?: readonly string[]
 }
 
 export interface MutantResult extends MutantCacheEntry {
@@ -55,6 +56,7 @@ export interface MutantRunSummary {
   readonly killed: boolean
   readonly durationMs: number
   readonly error?: string
+  readonly passingTests?: readonly string[]
 }
 
 /** Normalised result returned by adapters/orchestrator. */
@@ -62,4 +64,5 @@ export interface MutantRunResult {
   readonly status: MutantRunStatus
   readonly durationMs: number
   readonly error?: string
+  readonly passingTests?: readonly string[]
 }

@@ -16,6 +16,7 @@ import { saveCacheAtomic } from './cache.js'
 import { cleanupMutineerDirs } from './cleanup.js'
 import { PoolSpinner } from '../utils/PoolSpinner.js'
 import { CompileErrors } from '../utils/CompileErrors.js'
+import { EscapedTests } from '../utils/EscapedTests.js'
 import { createLogger } from '../utils/logger.js'
 
 const log = createLogger('pool-executor')
@@ -72,14 +73,26 @@ export async function executePool(opts: PoolExecutionOptions): Promise<void> {
       const compileErrorEntries = Object.values(cache).filter(
         (e) => e.status === 'compile-error',
       )
+      const escapedWithTests = Object.values(cache).filter(
+        (e) => e.status === 'escaped' && e.passingTests?.length,
+      )
       const useInteractive =
         interactive && process.stdout.isTTY && compileErrorEntries.length > 0
+      const useInteractiveEscaped =
+        interactive && process.stdout.isTTY && escapedWithTests.length > 0
       printSummary(summary, cache, durationMs, {
         skipCompileErrors: useInteractive,
+        skipPassingTests: useInteractiveEscaped,
       })
       if (useInteractive) {
         const { waitUntilExit } = render(
           createElement(CompileErrors, { entries: compileErrorEntries, cwd }),
+        )
+        await waitUntilExit()
+      }
+      if (useInteractiveEscaped) {
+        const { waitUntilExit } = render(
+          createElement(EscapedTests, { entries: escapedWithTests, cwd }),
         )
         await waitUntilExit()
       }
@@ -205,6 +218,10 @@ export async function executePool(opts: PoolExecutionOptions): Promise<void> {
       ...(status === 'escaped' &&
         (directTests ?? tests).length > 0 && {
           coveringTests: directTests ?? tests,
+        }),
+      ...(status === 'escaped' &&
+        result.passingTests?.length && {
+          passingTests: result.passingTests,
         }),
     }
     progress.update(status)

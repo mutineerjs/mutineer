@@ -248,10 +248,15 @@ export class VitestAdapter implements TestRunnerAdapter {
           error: result.error,
         }
       }
+      const status = result.killed ? 'killed' : 'escaped'
       return {
-        status: result.killed ? 'killed' : 'escaped',
+        status,
         durationMs: result.durationMs,
         error: result.error,
+        ...(!result.killed &&
+          result.passingTests && {
+            passingTests: result.passingTests,
+          }),
       }
     } catch (err) {
       return {

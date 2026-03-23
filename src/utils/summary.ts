@@ -63,7 +63,7 @@ export function printSummary(
   summary: Summary,
   cache?: Readonly<Record<string, MutantCacheEntry>>,
   durationMs?: number,
-  opts?: { skipCompileErrors?: boolean },
+  opts?: { skipCompileErrors?: boolean; skipPassingTests?: boolean },
 ): void {
   console.log('\n' + chalk.dim(SEPARATOR))
   console.log(chalk.bold(' Mutineer Test Suite Summary'))
@@ -140,6 +140,18 @@ export function printSummary(
           )
         }
       }
+      if (!opts?.skipPassingTests && entry.passingTests?.length) {
+        console.log('    ' + chalk.dim('Passed without catching:'))
+        const shown = entry.passingTests.slice(0, 5)
+        for (const t of shown) {
+          console.log('      ' + chalk.dim('· ' + t))
+        }
+        if (entry.passingTests.length > 5) {
+          console.log(
+            '      ' + chalk.dim(`+${entry.passingTests.length - 5} more`),
+          )
+        }
+      }
     }
   }
   if (entriesByStatus.compileErrors.length && !opts?.skipCompileErrors) {
@@ -198,6 +210,7 @@ export interface JsonMutant {
   readonly originalSnippet?: string
   readonly mutatedSnippet?: string
   readonly coveringTests?: readonly string[]
+  readonly passingTests?: readonly string[]
 }
 
 export interface JsonReport {
@@ -227,6 +240,9 @@ export function buildJsonReport(
     }),
     ...(entry.coveringTests !== undefined && {
       coveringTests: entry.coveringTests,
+    }),
+    ...(entry.passingTests !== undefined && {
+      passingTests: entry.passingTests,
     }),
   }))
 

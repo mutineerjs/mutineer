@@ -38,6 +38,7 @@ interface ResultResponse {
   killed: boolean
   durationMs: number
   error?: string
+  passingTests?: string[]
 }
 
 interface ShutdownResponse {
@@ -127,6 +128,7 @@ async function main(): Promise<void> {
           killed: result.killed,
           durationMs: result.durationMs,
           error: result.error,
+          ...(result.passingTests && { passingTests: result.passingTests as string[] }),
         })
       } catch (err) {
         // On error, treat as killed (conservative)
