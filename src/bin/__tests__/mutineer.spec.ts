@@ -12,6 +12,7 @@ describe('HELP_TEXT', () => {
     '--progress',
     '--changed',
     '--changed-with-deps',
+    '--full',
     '--only-covered-lines',
     '--per-test-coverage',
     '--coverage-file',
@@ -69,6 +70,14 @@ describe('confirmFullRun()', () => {
     mockTTY(true)
     const args = ['--changed-with-deps']
     expect(await confirmFullRun(args)).toBe(args)
+  })
+
+  it('returns args unchanged when --full is present, skipping prompt', async () => {
+    mockTTY(true)
+    const createSpy = vi.spyOn(readline, 'createInterface')
+    const args = ['--full']
+    expect(await confirmFullRun(args)).toBe(args)
+    expect(createSpy).not.toHaveBeenCalled()
   })
 
   it('skips prompt and returns args unchanged when stdin is not a TTY', async () => {

@@ -25,6 +25,7 @@ Options (run):
   --progress <bar|list|quiet>  Progress display (default: bar)
   --changed                 Mutate only git-changed files
   --changed-with-deps       Mutate changed files + their local dependencies
+  --full                    Mutate full codebase, skipping confirmation prompt
   --only-covered-lines      Mutate only lines covered by tests
   --per-test-coverage       Collect per-test coverage data
   --coverage-file <path>    Path to coverage JSON
@@ -68,7 +69,7 @@ Warning: Running on the full codebase may take a while.
 export async function confirmFullRun(args: string[]): Promise<string[]> {
   const isFullRun =
     !args.includes('--changed') && !args.includes('--changed-with-deps')
-  if (!isFullRun || !process.stdin.isTTY) return args
+  if (!isFullRun || !process.stdin.isTTY || args.includes('--full')) return args
 
   process.stdout.write(FULL_RUN_WARNING)
 

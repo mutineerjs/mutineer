@@ -100,6 +100,7 @@ npm run mutineer
 | `--concurrency <n>`      | Parallel workers (min 1)                                        | CPUs - 1      |
 | `--changed`              | Only mutate files changed vs base branch                        | --            |
 | `--changed-with-deps`    | Include dependents of changed files                             | --            |
+| `--full`                 | Mutate full codebase, skipping confirmation prompt              | --            |
 | `--only-covered-lines`   | Skip mutations on uncovered lines                               | --            |
 | `--per-test-coverage`    | Run only tests that cover the mutated line                      | --            |
 | `--coverage-file <path>` | Path to Istanbul coverage JSON                                  | auto-detected |
@@ -170,7 +171,7 @@ export default defineMutineerConfig({
 
 Large repos can generate thousands of mutations. These strategies keep runs fast and incremental.
 
-When you run `mutineer run` without `--changed` or `--changed-with-deps` on an interactive terminal, mutineer warns you and lets you narrow scope before starting:
+When you run `mutineer run` without `--changed`, `--changed-with-deps`, or `--full` on an interactive terminal, mutineer warns you and lets you narrow scope before starting:
 
 ```
 Warning: Running on the full codebase may take a while.
