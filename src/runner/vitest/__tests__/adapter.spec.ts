@@ -205,6 +205,22 @@ describe('Vitest adapter', () => {
     expect(args.join(' ')).not.toContain('--shard')
   })
 
+  it('strips --report flag and value from vitest args', async () => {
+    const adapter = makeAdapter({ cliArgs: ['--report', 'json'] })
+    spawnMock.mockImplementationOnce(() => ({
+      on: (evt: string, cb: (...a: any[]) => void) => {
+        if (evt === 'exit') cb(0)
+      },
+    }))
+    await adapter.runBaseline(['test-a'], {
+      collectCoverage: false,
+      perTestCoverage: false,
+    })
+    const args = spawnMock.mock.calls[0][1] as string[]
+    expect(args.join(' ')).not.toContain('--report')
+    expect(args.join(' ')).not.toContain('json')
+  })
+
   it('does not write captured output to stdout/stderr on success', async () => {
     const adapter = makeAdapter({ cliArgs: [] })
     const stdoutWrite = vi.spyOn(process.stdout, 'write').mockReturnValue(true)
