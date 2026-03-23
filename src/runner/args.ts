@@ -29,6 +29,7 @@ export interface ParsedCliOptions {
   readonly typescriptCheck: boolean | undefined
   /** Vitest workspace project name(s) to filter mutations to */
   readonly vitestProject: string | undefined
+  readonly skipBaseline: boolean
 }
 
 /**
@@ -239,6 +240,7 @@ export function parseCliOptions(
       : undefined
 
   const vitestProject = readStringFlag(args, '--vitest-project')
+  const skipBaseline = args.includes('--skip-baseline')
 
   return {
     configPath,
@@ -256,5 +258,6 @@ export function parseCliOptions(
     shard,
     typescriptCheck,
     vitestProject,
+    skipBaseline,
   }
 }

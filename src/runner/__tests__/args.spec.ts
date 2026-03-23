@@ -381,6 +381,16 @@ describe('parseCliOptions', () => {
     const opts = parseCliOptions([], emptyCfg)
     expect(opts.vitestProject).toBeUndefined()
   })
+
+  it('parses --skip-baseline flag', () => {
+    const opts = parseCliOptions(['--skip-baseline'], emptyCfg)
+    expect(opts.skipBaseline).toBe(true)
+  })
+
+  it('defaults skipBaseline to false', () => {
+    const opts = parseCliOptions([], emptyCfg)
+    expect(opts.skipBaseline).toBe(false)
+  })
 })
 
 describe('validatePositiveMs', () => {
