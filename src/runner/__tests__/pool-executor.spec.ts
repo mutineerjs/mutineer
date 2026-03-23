@@ -477,6 +477,71 @@ describe('executePool', () => {
     expect(cache['killed-covering-key'].coveringTests).toBeUndefined()
   })
 
+  it('sets isFallback=true when mutant id is in fallbackIds', async () => {
+    const adapter = makeAdapter()
+    const cache: Record<string, MutantCacheEntry> = {}
+    const task = makeTask({ key: 'fb-key' })
+    const fallbackIds = new Set(['file.ts#0'])
+
+    await executePool({
+      tasks: [task],
+      adapter,
+      cache,
+      concurrency: 1,
+      progressMode: 'list',
+      cwd: tmpDir,
+      fallbackIds,
+    })
+
+    expect(adapter.runMutant).toHaveBeenCalledWith(
+      expect.objectContaining({ isFallback: true }),
+      expect.any(Array),
+    )
+  })
+
+  it('sets isFallback=false when mutant id is not in fallbackIds', async () => {
+    const adapter = makeAdapter()
+    const cache: Record<string, MutantCacheEntry> = {}
+    const task = makeTask({ key: 'schema-key' })
+    const fallbackIds = new Set<string>() // empty — no fallbacks
+
+    await executePool({
+      tasks: [task],
+      adapter,
+      cache,
+      concurrency: 1,
+      progressMode: 'list',
+      cwd: tmpDir,
+      fallbackIds,
+    })
+
+    expect(adapter.runMutant).toHaveBeenCalledWith(
+      expect.objectContaining({ isFallback: false }),
+      expect.any(Array),
+    )
+  })
+
+  it('defaults isFallback=true when fallbackIds is not provided', async () => {
+    const adapter = makeAdapter()
+    const cache: Record<string, MutantCacheEntry> = {}
+    const task = makeTask({ key: 'no-fallback-ids-key' })
+
+    await executePool({
+      tasks: [task],
+      adapter,
+      cache,
+      concurrency: 1,
+      progressMode: 'list',
+      cwd: tmpDir,
+      // no fallbackIds
+    })
+
+    expect(adapter.runMutant).toHaveBeenCalledWith(
+      expect.objectContaining({ isFallback: true }),
+      expect.any(Array),
+    )
+  })
+
   it('correctly stores snippets for multiple escaped mutants from the same file', async () => {
     const tmpFile = path.join(tmpDir, 'shared.ts')
     await fs.writeFile(tmpFile, 'const x = a + b\n')
