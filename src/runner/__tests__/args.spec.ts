@@ -202,6 +202,16 @@ describe('parseCliOptions', () => {
     expect(opts.wantsChangedWithDeps).toBe(true)
   })
 
+  it('parses --full flag', () => {
+    const opts = parseCliOptions(['--full'], emptyCfg)
+    expect(opts.wantsFull).toBe(true)
+  })
+
+  it('wantsFull defaults to false', () => {
+    const opts = parseCliOptions([], emptyCfg)
+    expect(opts.wantsFull).toBe(false)
+  })
+
   it('parses --only-covered-lines flag', () => {
     const opts = parseCliOptions(['--only-covered-lines'], emptyCfg)
     expect(opts.wantsOnlyCoveredLines).toBe(true)

@@ -47,6 +47,7 @@ function stripMutineerArgs(args: string[]): string[] {
     '--mutate',
     '--changed',
     '--changed-with-deps',
+    '--full',
     '--only-covered-lines',
     '--per-test-coverage',
     '--perTestCoverage',

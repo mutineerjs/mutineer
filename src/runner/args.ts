@@ -15,6 +15,7 @@ export interface ParsedCliOptions {
   readonly configPath: string | undefined
   readonly wantsChanged: boolean
   readonly wantsChangedWithDeps: boolean
+  readonly wantsFull: boolean
   readonly wantsOnlyCoveredLines: boolean
   readonly wantsPerTestCoverage: boolean
   readonly coverageFilePath: string | undefined
@@ -196,6 +197,7 @@ export function parseCliOptions(
   const configPath = readStringFlag(args, '--config', '-c')
   const wantsChanged = args.includes('--changed')
   const wantsChangedWithDeps = args.includes('--changed-with-deps')
+  const wantsFull = args.includes('--full')
   const wantsOnlyCoveredLines =
     args.includes('--only-covered-lines') || cfg.onlyCoveredLines === true
   const wantsPerTestCoverage =
@@ -246,6 +248,7 @@ export function parseCliOptions(
     configPath,
     wantsChanged,
     wantsChangedWithDeps,
+    wantsFull,
     wantsOnlyCoveredLines,
     wantsPerTestCoverage,
     coverageFilePath,
