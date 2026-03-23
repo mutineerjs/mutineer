@@ -122,6 +122,7 @@ export async function runOrchestrator(cliArgs: string[], cwd: string) {
     : (cfg.autoDiscover ?? true)
       ? discovered.targets
       : []
+  targets.sort((a, b) => getTargetFile(a).localeCompare(getTargetFile(b)))
 
   // Collect all test files for baseline run
   const allTestFiles = new Set<string>()

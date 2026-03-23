@@ -70,12 +70,10 @@ vi.mock('../ts-checker.js', () => ({
   resolveTsconfigPath: vi.fn().mockReturnValue(undefined),
 }))
 vi.mock('../../core/schemata.js', () => ({
-  generateSchema: vi
-    .fn()
-    .mockReturnValue({
-      schemaCode: '// @ts-nocheck\n',
-      fallbackIds: new Set(),
-    }),
+  generateSchema: vi.fn().mockReturnValue({
+    schemaCode: '// @ts-nocheck\n',
+    fallbackIds: new Set(),
+  }),
 }))
 import { runOrchestrator, parseMutantTimeoutMs } from '../orchestrator.js'
 import { loadMutineerConfig } from '../config.js'
@@ -442,6 +440,48 @@ describe('runOrchestrator shard filtering', () => {
 
     const call = vi.mocked(executePool).mock.calls[0][0]
     expect(call.shard).toEqual({ index: 1, total: 4 })
+  })
+})
+
+describe('runOrchestrator target ordering', () => {
+  const testFile = '/cwd/src/__tests__/foo.spec.ts'
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    process.exitCode = undefined
+    vi.mocked(createVitestAdapter).mockReturnValue(
+      mockAdapter as unknown as VitestAdapter,
+    )
+    // No explicit targets -- use auto-discovery
+    vi.mocked(loadMutineerConfig).mockResolvedValue({})
+    vi.mocked(mockAdapter.runBaseline).mockResolvedValue(true)
+    vi.mocked(enumerateAllVariants).mockResolvedValue([])
+    vi.mocked(prepareTasks).mockReturnValue([])
+  })
+
+  afterEach(() => {
+    process.exitCode = undefined
+  })
+
+  it('sorts auto-discovered targets alphabetically before enumeration', async () => {
+    const fileA = '/cwd/src/aaa.ts'
+    const fileB = '/cwd/src/bbb.ts'
+    const fileC = '/cwd/src/ccc.ts'
+    // Return targets in reverse-alphabetical order (simulating non-deterministic fs)
+    vi.mocked(autoDiscoverTargetsAndTests).mockResolvedValue({
+      targets: [fileC, fileA, fileB],
+      testMap: new Map([
+        [fileA, new Set([testFile])],
+        [fileB, new Set([testFile])],
+        [fileC, new Set([testFile])],
+      ]),
+      directTestMap: new Map(),
+    })
+
+    await runOrchestrator([], '/cwd')
+
+    const call = vi.mocked(enumerateAllVariants).mock.calls[0][0]
+    expect(call.targets).toEqual([fileA, fileB, fileC])
   })
 })
 
