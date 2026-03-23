@@ -15,10 +15,10 @@ Built for **Vitest** with first-class **Jest** support. Other test runners can b
 
 ## How It Works
 
-1. **Baseline** -- runs your test suite to make sure everything passes before mutating
-2. **Mutate** -- applies AST-safe operator replacements to your source files (not your tests)
-3. **Test** -- re-runs only the tests that import the mutated file; compile errors are detected via parallel TypeScript workers and surfaced in an interactive UI
-4. **Report** -- prints a summary with kill rate, escaped mutants, and per-file breakdowns
+1. **Baseline** - runs your test suite to make sure everything passes before mutating
+2. **Mutate** - applies AST-safe operator replacements to your source files (not your tests)
+3. **Test** - re-runs only the tests that import the mutated file; compile errors are detected via parallel TypeScript workers
+4. **Report** - prints a summary with kill rate, escaped mutants, and per-file breakdowns
 
 Mutations are applied using Babel AST analysis, so operators inside strings and comments are never touched. Mutated code is written to a temporary `__mutineer__` directory next to each source file, then loaded at runtime via Vite plugins (Vitest) or custom resolvers (Jest).
 
