@@ -34,6 +34,9 @@ Options (run):
   --report <text|json>      Output format: text (default) or json (writes mutineer-report.json)
   --shard <n>/<total>       Run a shard of mutants (e.g. --shard 1/4)
   --skip-baseline           Skip the baseline test run
+  --vitest-project <name>   Filter to a specific Vitest workspace project
+  --typescript              Enable TS type-check pre-filtering
+  --no-typescript           Disable TS type-check pre-filtering
 
   --help, -h                Show this help
   --version, -V             Show version
