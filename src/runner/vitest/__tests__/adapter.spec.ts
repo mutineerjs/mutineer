@@ -72,6 +72,38 @@ describe('Vitest adapter', () => {
     expect(res).toEqual({ status: 'killed', durationMs: 10, error: undefined })
   })
 
+  it('includes passingTests in escaped result', async () => {
+    const adapter = makeAdapter()
+    await adapter.init()
+    poolInstance!.run.mockResolvedValueOnce({
+      killed: false,
+      durationMs: 8,
+      passingTests: ['Suite > test one', 'Suite > test two'],
+    })
+    const res = await adapter.runMutant(
+      { id: '2', name: 'm', file: 'f', code: 'c', line: 1, col: 1 },
+      ['t'],
+    )
+    expect(res.status).toBe('escaped')
+    expect(res.passingTests).toEqual(['Suite > test one', 'Suite > test two'])
+  })
+
+  it('omits passingTests for killed mutants', async () => {
+    const adapter = makeAdapter()
+    await adapter.init()
+    poolInstance!.run.mockResolvedValueOnce({
+      killed: true,
+      durationMs: 5,
+      passingTests: ['should not appear'],
+    })
+    const res = await adapter.runMutant(
+      { id: '3', name: 'm', file: 'f', code: 'c', line: 1, col: 1 },
+      ['t'],
+    )
+    expect(res.status).toBe('killed')
+    expect(res.passingTests).toBeUndefined()
+  })
+
   it('maps pool timeout errors to timeout status', async () => {
     const adapter = makeAdapter()
     await adapter.init()
@@ -171,6 +203,22 @@ describe('Vitest adapter', () => {
     })
     const args = spawnMock.mock.calls[0][1] as string[]
     expect(args.join(' ')).not.toContain('--shard')
+  })
+
+  it('strips --report flag and value from vitest args', async () => {
+    const adapter = makeAdapter({ cliArgs: ['--report', 'json'] })
+    spawnMock.mockImplementationOnce(() => ({
+      on: (evt: string, cb: (...a: any[]) => void) => {
+        if (evt === 'exit') cb(0)
+      },
+    }))
+    await adapter.runBaseline(['test-a'], {
+      collectCoverage: false,
+      perTestCoverage: false,
+    })
+    const args = spawnMock.mock.calls[0][1] as string[]
+    expect(args.join(' ')).not.toContain('--report')
+    expect(args.join(' ')).not.toContain('json')
   })
 
   it('does not write captured output to stdout/stderr on success', async () => {

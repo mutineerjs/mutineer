@@ -15,7 +15,6 @@ import {
 import { saveCacheAtomic } from './cache.js'
 import { cleanupMutineerDirs } from './cleanup.js'
 import { PoolSpinner } from '../utils/PoolSpinner.js'
-import { CompileErrors } from '../utils/CompileErrors.js'
 import { createLogger } from '../utils/logger.js'
 
 const log = createLogger('pool-executor')
@@ -52,7 +51,7 @@ export async function executePool(opts: PoolExecutionOptions): Promise<void> {
 
   // Ensure we only finish once
   let finished = false
-  const finishOnce = async (interactive = true) => {
+  const finishOnce = async () => {
     if (finished) return
     finished = true
     const durationMs = Date.now() - mutationStartTime
@@ -69,20 +68,7 @@ export async function executePool(opts: PoolExecutionOptions): Promise<void> {
         `JSON report written to ${path.relative(process.cwd(), outPath)}`,
       )
     } else {
-      const compileErrorEntries = Object.values(cache).filter(
-        (e) => e.status === 'compile-error',
-      )
-      const useInteractive =
-        interactive && process.stdout.isTTY && compileErrorEntries.length > 0
-      printSummary(summary, cache, durationMs, {
-        skipCompileErrors: useInteractive,
-      })
-      if (useInteractive) {
-        const { waitUntilExit } = render(
-          createElement(CompileErrors, { entries: compileErrorEntries, cwd }),
-        )
-        await waitUntilExit()
-      }
+      printSummary(summary, cache, durationMs)
     }
     if (opts.minKillPercent !== undefined) {
       const killRateString = summary.killRate.toFixed(2)
@@ -206,6 +192,10 @@ export async function executePool(opts: PoolExecutionOptions): Promise<void> {
         (directTests ?? tests).length > 0 && {
           coveringTests: directTests ?? tests,
         }),
+      ...(status === 'escaped' &&
+        result.passingTests?.length && {
+          passingTests: result.passingTests,
+        }),
     }
     progress.update(status)
   }
@@ -226,7 +216,7 @@ export async function executePool(opts: PoolExecutionOptions): Promise<void> {
     if (signalCleanedUp) return
     signalCleanedUp = true
     log.info(`\nReceived ${signal}, cleaning up...`)
-    await finishOnce(false)
+    await finishOnce()
     await adapter.shutdown()
     await cleanupMutineerDirs(cwd)
     process.exit(1)

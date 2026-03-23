@@ -309,4 +309,45 @@ describe('VitestPool', () => {
 
     killSpy.mockRestore()
   })
+
+  it('threads passingTests from WorkerMessage through to MutantRunSummary', async () => {
+    const pool = new VitestPool({
+      cwd: process.cwd(),
+      concurrency: 1,
+      timeoutMs: 5000,
+      createWorker: (id) => {
+        const worker = new EventEmitter() as any
+        worker.id = id
+        worker.start = vi.fn().mockResolvedValue(undefined)
+        worker.isReady = vi.fn().mockReturnValue(true)
+        worker.isBusy = vi.fn().mockReturnValue(false)
+        worker.run = vi.fn().mockResolvedValue({
+          killed: false,
+          durationMs: 10,
+          passingTests: ['Suite > test one', 'Suite > test two'],
+        })
+        worker.shutdown = vi.fn().mockResolvedValue(undefined)
+        worker.kill = vi.fn()
+        return worker
+      },
+    })
+    await pool.init()
+
+    const mutant: MutantPayload = {
+      id: 'pt1',
+      name: 'mutant',
+      file: 'foo.ts',
+      code: 'x',
+      line: 1,
+      col: 1,
+    }
+
+    const result = await pool.run(mutant, ['foo.spec.ts'])
+
+    expect(result.passingTests).toEqual([
+      'Suite > test one',
+      'Suite > test two',
+    ])
+    await pool.shutdown()
+  })
 })

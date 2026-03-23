@@ -163,6 +163,78 @@ describe('VitestWorkerRuntime', () => {
     await runtime.shutdown()
   })
 
+  it('collects passingTests fullNames from modules when mutant escapes', async () => {
+    const makeModule = (moduleId: string, names: string[]) => ({
+      moduleId,
+      ok: () => true,
+      children: {
+        allTests: (_state: string) => names.map((n) => ({ fullName: n })),
+      },
+    })
+    runSpecsFn.mockResolvedValue({
+      testModules: [
+        makeModule(path.join(os.tmpdir(), 'test.ts'), [
+          'Math > adds',
+          'Math > subtracts',
+        ]),
+      ],
+    })
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'mutineer-worker-pt-'))
+    tmpFiles.push(tmp)
+    const runtime = createVitestWorkerRuntime({ workerId: 'w-pt', cwd: tmp })
+    await runtime.init()
+
+    const result = await runtime.run(
+      {
+        id: 'mut#pt',
+        name: 'm',
+        file: path.join(tmp, 'src.ts'),
+        code: 'export const x=1',
+        line: 1,
+        col: 1,
+      },
+      [path.join(os.tmpdir(), 'test.ts')],
+    )
+
+    expect(result.killed).toBe(false)
+    expect(result.passingTests).toEqual(['Math > adds', 'Math > subtracts'])
+    await runtime.shutdown()
+  })
+
+  it('omits passingTests when mutant is killed', async () => {
+    runSpecsFn.mockResolvedValue({
+      testModules: [
+        {
+          moduleId: path.join(os.tmpdir(), 'test.ts'),
+          ok: () => false,
+          children: {
+            allTests: (_state: string) => [{ fullName: 'Math > adds' }],
+          },
+        },
+      ],
+    })
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'mutineer-worker-kpt-'))
+    tmpFiles.push(tmp)
+    const runtime = createVitestWorkerRuntime({ workerId: 'w-kpt', cwd: tmp })
+    await runtime.init()
+
+    const result = await runtime.run(
+      {
+        id: 'mut#kpt',
+        name: 'm',
+        file: path.join(tmp, 'src.ts'),
+        code: 'export const x=1',
+        line: 1,
+        col: 1,
+      },
+      [path.join(os.tmpdir(), 'test.ts')],
+    )
+
+    expect(result.killed).toBe(true)
+    expect(result.passingTests).toBeUndefined()
+    await runtime.shutdown()
+  })
+
   it('falls back to all testModules when no relevant modules match', async () => {
     runSpecsFn.mockResolvedValue({
       testModules: [{ moduleId: 'unknown-module', ok: () => true }],

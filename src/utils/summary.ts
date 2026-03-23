@@ -63,7 +63,6 @@ export function printSummary(
   summary: Summary,
   cache?: Readonly<Record<string, MutantCacheEntry>>,
   durationMs?: number,
-  opts?: { skipCompileErrors?: boolean },
 ): void {
   console.log('\n' + chalk.dim(SEPARATOR))
   console.log(chalk.bold(' Mutineer Test Suite Summary'))
@@ -142,11 +141,6 @@ export function printSummary(
       }
     }
   }
-  if (entriesByStatus.compileErrors.length && !opts?.skipCompileErrors) {
-    console.log('\n' + chalk.dim('Compile Error Mutants (type-filtered):'))
-    for (const entry of entriesByStatus.compileErrors)
-      console.log('  ' + formatRow(entry))
-  }
   if (entriesByStatus.timeouts.length) {
     console.log('\n' + chalk.yellow.bold('Timed Out Mutants:'))
     for (const entry of entriesByStatus.timeouts)
@@ -186,6 +180,7 @@ export function printSummary(
     console.log(`Duration: ${chalk.cyan(formatDuration(durationMs))}`)
   }
 
+  console.log(chalk.dim('Run with --report json to see full mutation details.'))
   console.log(chalk.dim(SEPARATOR) + '\n')
 }
 
@@ -198,6 +193,7 @@ export interface JsonMutant {
   readonly originalSnippet?: string
   readonly mutatedSnippet?: string
   readonly coveringTests?: readonly string[]
+  readonly passingTests?: readonly string[]
 }
 
 export interface JsonReport {
@@ -227,6 +223,9 @@ export function buildJsonReport(
     }),
     ...(entry.coveringTests !== undefined && {
       coveringTests: entry.coveringTests,
+    }),
+    ...(entry.passingTests !== undefined && {
+      passingTests: entry.passingTests,
     }),
   }))
 
