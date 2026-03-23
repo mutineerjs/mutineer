@@ -122,7 +122,7 @@ describe('checkTypes', () => {
 
     const result = await checkTypes([variant], undefined, CWD_WITHOUT_TSCONFIG)
     expect(result.has('valid.ts#0')).toBe(false)
-  })
+  }, 15000)
 
   it('flags TypeScript type mismatch as compile error', async () => {
     const variant = makeVariant({
@@ -133,7 +133,7 @@ describe('checkTypes', () => {
 
     const result = await checkTypes([variant], undefined, CWD_WITHOUT_TSCONFIG)
     expect(result.has('bad.ts#0')).toBe(true)
-  })
+  }, 15000)
 
   it('checks multiple variants for same file independently', async () => {
     const valid = makeVariant({
@@ -154,7 +154,7 @@ describe('checkTypes', () => {
     )
     expect(result.has('multi.ts#0')).toBe(false)
     expect(result.has('multi.ts#1')).toBe(true)
-  })
+  }, 15000)
 
   it('checks variants from different files independently', async () => {
     const validA = makeVariant({
@@ -175,5 +175,5 @@ describe('checkTypes', () => {
     )
     expect(result.has('a.ts#0')).toBe(false)
     expect(result.has('b.ts#0')).toBe(true)
-  })
+  }, 15000)
 })

@@ -16,6 +16,9 @@
 import ts from 'typescript'
 import fs from 'node:fs'
 import path from 'node:path'
+import os from 'node:os'
+import { Worker } from 'worker_threads'
+import { fileURLToPath } from 'node:url'
 import type { MutineerConfig } from '../types/config.js'
 import type { Variant } from '../types/mutant.js'
 import { createLogger } from '../utils/logger.js'
@@ -123,6 +126,84 @@ function diagnose(
 }
 
 /**
+ * Run type checks for one file group synchronously. Used both by the sync
+ * fallback (test/dev environments) and by the worker thread.
+ */
+export function checkFileSync(
+  options: ts.CompilerOptions,
+  filePath: string,
+  fileVariants: readonly Variant[],
+): string[] {
+  const resolvedPath = path.resolve(filePath)
+  const compileErrorIds: string[] = []
+
+  let originalCode = ''
+  try {
+    originalCode = fs.readFileSync(resolvedPath, 'utf8')
+  } catch {
+    log.debug(`Cannot read ${filePath} for baseline — using empty baseline`)
+  }
+
+  const { program: baseProgram, keys: baselineKeys } = diagnose(
+    options,
+    resolvedPath,
+    originalCode,
+    undefined,
+  )
+  log.debug(`Baseline for ${filePath}: ${baselineKeys.size} error(s)`)
+
+  let prevProgram: ts.Program = baseProgram
+
+  for (const variant of fileVariants) {
+    const { program: mutProgram, keys: mutantKeys } = diagnose(
+      options,
+      resolvedPath,
+      variant.code,
+      prevProgram,
+    )
+    prevProgram = mutProgram
+
+    let newErrors = 0
+    for (const key of mutantKeys) {
+      if (!baselineKeys.has(key)) newErrors++
+    }
+
+    if (newErrors > 0) {
+      compileErrorIds.push(variant.id)
+      log.debug(`Compile error in ${variant.id}: ${newErrors} new error(s)`)
+    }
+  }
+
+  return compileErrorIds
+}
+
+/** Spawn a worker for one file group and resolve with the compile-error IDs. */
+function runWorker(
+  workerPath: string,
+  options: ts.CompilerOptions,
+  filePath: string,
+  variants: readonly Variant[],
+): Promise<string[]> {
+  return new Promise((resolve, reject) => {
+    const worker = new Worker(workerPath, {
+      workerData: {
+        options,
+        filePath,
+        variants: variants.map((v) => ({ id: v.id, code: v.code })),
+      },
+    })
+    worker.once('message', (msg: { compileErrorIds: string[] }) => {
+      resolve(msg.compileErrorIds)
+    })
+    worker.once('error', reject)
+    worker.once('exit', (code) => {
+      if (code !== 0)
+        reject(new Error(`ts-checker worker exited with code ${code}`))
+    })
+  })
+}
+
+/**
  * Check TypeScript types for mutated variants.
  * Returns a Set of variant IDs that introduce NEW compile errors vs the original.
  */
@@ -144,50 +225,35 @@ export async function checkTypes(
     else byFile.set(v.file, [v])
   }
 
-  for (const [filePath, fileVariants] of byFile) {
-    const resolvedPath = path.resolve(filePath)
+  // In test/dev environments import.meta.url ends in .ts — Node can't load .ts
+  // workers, so fall back to the synchronous path.
+  const isTsSource = import.meta.url.endsWith('.ts')
 
-    // Read original source — needed for baseline comparison.
-    // If the file can't be read (e.g. in tests with synthetic paths), use an
-    // empty baseline so all mutant errors count as new.
-    let originalCode = ''
-    try {
-      originalCode = fs.readFileSync(resolvedPath, 'utf8')
-    } catch {
-      log.debug(`Cannot read ${filePath} for baseline — using empty baseline`)
+  if (isTsSource) {
+    for (const [filePath, fileVariants] of byFile) {
+      for (const id of checkFileSync(options, filePath, fileVariants)) {
+        compileErrors.add(id)
+      }
     }
+    return compileErrors
+  }
 
-    // Baseline: errors present in the original (from missing lib/import types etc.)
-    // These are NOT new errors, so we ignore them in mutations.
-    const { program: baseProgram, keys: baselineKeys } = diagnose(
-      options,
-      resolvedPath,
-      originalCode,
-      undefined,
+  // Parallel worker dispatch
+  const workerPath = fileURLToPath(
+    new URL('./ts-checker-worker.js', import.meta.url),
+  )
+  const maxConcurrency = Math.max(os.cpus().length - 1, 1)
+  const entries = Array.from(byFile.entries())
+
+  for (let i = 0; i < entries.length; i += maxConcurrency) {
+    const batch = entries.slice(i, i + maxConcurrency)
+    const results = await Promise.all(
+      batch.map(([filePath, fileVariants]) =>
+        runWorker(workerPath, options, filePath, fileVariants),
+      ),
     )
-    log.debug(`Baseline for ${filePath}: ${baselineKeys.size} error(s)`)
-
-    let prevProgram: ts.Program = baseProgram
-
-    for (const variant of fileVariants) {
-      const { program: mutProgram, keys: mutantKeys } = diagnose(
-        options,
-        resolvedPath,
-        variant.code,
-        prevProgram,
-      )
-      prevProgram = mutProgram
-
-      // Count errors that are new (not in baseline)
-      let newErrors = 0
-      for (const key of mutantKeys) {
-        if (!baselineKeys.has(key)) newErrors++
-      }
-
-      if (newErrors > 0) {
-        compileErrors.add(variant.id)
-        log.debug(`Compile error in ${variant.id}: ${newErrors} new error(s)`)
-      }
+    for (const ids of results) {
+      for (const id of ids) compileErrors.add(id)
     }
   }
 
