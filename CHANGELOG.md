@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.0](https://github.com/mutineerjs/mutineer/compare/v0.7.0...v0.8.0) (2026-03-23)
+
+
+### Added
+
+* performance improvements ([41dbb5c](https://github.com/mutineerjs/mutineer/commit/41dbb5cd67e844dde1d17332a970dac8f4311e20))
+
 ## [0.7.0](https://github.com/mutineerjs/mutineer/compare/v0.6.0...v0.7.0) (2026-03-18)
 
 
