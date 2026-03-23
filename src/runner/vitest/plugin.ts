@@ -32,7 +32,7 @@ export function poolMutineerPlugin(): PluginOption {
     enforce: 'pre',
     config(config: UserConfig) {
       const activeIdFile = process.env.MUTINEER_ACTIVE_ID_FILE
-      if (!activeIdFile) return null
+      if (!activeIdFile || !path.isAbsolute(activeIdFile)) return null
       const setupFile = path.join(path.dirname(activeIdFile), 'setup.mjs')
       const testConfig = (config as Record<string, unknown>).test as
         | { setupFiles?: string | string[] }

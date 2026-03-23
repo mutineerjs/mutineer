@@ -40,7 +40,7 @@ export class VitestWorkerRuntime {
     try {
       // Write setup.mjs before creating Vitest so the config hook can find it
       const activeIdFile = process.env.MUTINEER_ACTIVE_ID_FILE
-      if (activeIdFile) {
+      if (activeIdFile && path.isAbsolute(activeIdFile)) {
         const mutineerDir = path.dirname(activeIdFile)
         fs.mkdirSync(mutineerDir, { recursive: true })
         fs.writeFileSync(

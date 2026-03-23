@@ -231,7 +231,11 @@ describe('VitestWorkerRuntime', () => {
       expect(fs.readFileSync(setupFile, 'utf8')).toContain('beforeAll')
       await runtime.shutdown()
     } finally {
-      process.env.MUTINEER_ACTIVE_ID_FILE = origEnv
+      if (origEnv === undefined) {
+        delete process.env.MUTINEER_ACTIVE_ID_FILE
+      } else {
+        process.env.MUTINEER_ACTIVE_ID_FILE = origEnv
+      }
     }
   })
 
@@ -267,7 +271,11 @@ describe('VitestWorkerRuntime', () => {
       expect(fs.readFileSync(activeIdFile, 'utf8')).toBe('')
       await runtime.shutdown()
     } finally {
-      process.env.MUTINEER_ACTIVE_ID_FILE = origEnv
+      if (origEnv === undefined) {
+        delete process.env.MUTINEER_ACTIVE_ID_FILE
+      } else {
+        process.env.MUTINEER_ACTIVE_ID_FILE = origEnv
+      }
     }
   })
 
@@ -299,7 +307,11 @@ describe('VitestWorkerRuntime', () => {
       expect(invalidateFn).toHaveBeenCalledWith(path.join(tmp, 'src.ts'))
       await runtime.shutdown()
     } finally {
-      process.env.MUTINEER_ACTIVE_ID_FILE = origEnv
+      if (origEnv === undefined) {
+        delete process.env.MUTINEER_ACTIVE_ID_FILE
+      } else {
+        process.env.MUTINEER_ACTIVE_ID_FILE = origEnv
+      }
     }
   })
 
