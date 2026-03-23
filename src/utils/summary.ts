@@ -7,6 +7,7 @@ export interface Summary {
   readonly killed: number
   readonly escaped: number
   readonly skipped: number
+  readonly timeouts: number
   readonly compileErrors: number
   readonly evaluated: number
   readonly killRate: number
@@ -22,12 +23,14 @@ export function computeSummary(
   let killed = 0
   let escaped = 0
   let skipped = 0
+  let timeouts = 0
   let compileErrors = 0
 
   for (const entry of allEntries) {
     if (entry.status === 'killed') killed++
     else if (entry.status === 'escaped') escaped++
     else if (entry.status === 'compile-error') compileErrors++
+    else if (entry.status === 'timeout') timeouts++
     else skipped++
   }
 
@@ -35,7 +38,16 @@ export function computeSummary(
   const total = allEntries.length
   const killRate = evaluated === 0 ? 0 : (killed / evaluated) * 100
 
-  return { total, killed, escaped, skipped, compileErrors, evaluated, killRate }
+  return {
+    total,
+    killed,
+    escaped,
+    skipped,
+    timeouts,
+    compileErrors,
+    evaluated,
+    killRate,
+  }
 }
 
 function formatDuration(ms: number): string {
@@ -51,6 +63,7 @@ export function printSummary(
   summary: Summary,
   cache?: Readonly<Record<string, MutantCacheEntry>>,
   durationMs?: number,
+  opts?: { skipCompileErrors?: boolean },
 ): void {
   console.log('\n' + chalk.dim(SEPARATOR))
   console.log(chalk.bold(' Mutineer Test Suite Summary'))
@@ -87,6 +100,7 @@ export function printSummary(
     killed: [] as MutantCacheEntry[],
     escaped: [] as MutantCacheEntry[],
     compileErrors: [] as MutantCacheEntry[],
+    timeouts: [] as MutantCacheEntry[],
     skipped: [] as MutantCacheEntry[],
   }
 
@@ -95,6 +109,7 @@ export function printSummary(
     else if (entry.status === 'escaped') entriesByStatus.escaped.push(entry)
     else if (entry.status === 'compile-error')
       entriesByStatus.compileErrors.push(entry)
+    else if (entry.status === 'timeout') entriesByStatus.timeouts.push(entry)
     else entriesByStatus.skipped.push(entry)
   }
 
@@ -127,9 +142,14 @@ export function printSummary(
       }
     }
   }
-  if (entriesByStatus.compileErrors.length) {
+  if (entriesByStatus.compileErrors.length && !opts?.skipCompileErrors) {
     console.log('\n' + chalk.dim('Compile Error Mutants (type-filtered):'))
     for (const entry of entriesByStatus.compileErrors)
+      console.log('  ' + formatRow(entry))
+  }
+  if (entriesByStatus.timeouts.length) {
+    console.log('\n' + chalk.yellow.bold('Timed Out Mutants:'))
+    for (const entry of entriesByStatus.timeouts)
       console.log('  ' + formatRow(entry))
   }
   if (entriesByStatus.skipped.length) {
@@ -143,8 +163,9 @@ export function printSummary(
     summary.compileErrors > 0
       ? `, ${chalk.dim(`Compile Errors: ${summary.compileErrors}`)}`
       : ''
+  const timeoutStr = `, ${chalk.yellow(`Timeouts: ${summary.timeouts}`)}`
   console.log(
-    `Total: ${summary.total} \u2014 ${chalk.green(`Killed: ${summary.killed}`)}, ${chalk.red(`Escaped: ${summary.escaped}`)}, ${chalk.dim(`Skipped: ${summary.skipped}`)}${compileErrorStr}`,
+    `Total: ${summary.total} \u2014 ${chalk.green(`Killed: ${summary.killed}`)}, ${chalk.red(`Escaped: ${summary.escaped}`)}, ${chalk.dim(`Skipped: ${summary.skipped}`)}${timeoutStr}${compileErrorStr}`,
   )
 
   if (summary.evaluated === 0) {
