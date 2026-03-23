@@ -17,7 +17,7 @@ Built for **Vitest** with first-class **Jest** support. Other test runners can b
 
 1. **Baseline** -- runs your test suite to make sure everything passes before mutating
 2. **Mutate** -- applies AST-safe operator replacements to your source files (not your tests)
-3. **Test** -- re-runs only the tests that import the mutated file, using temp files in `__mutineer__` dirs loaded via Vite plugin / Jest resolver
+3. **Test** -- re-runs only the tests that import the mutated file; compile errors are detected via parallel TypeScript workers and surfaced in an interactive UI
 4. **Report** -- prints a summary with kill rate, escaped mutants, and per-file breakdowns
 
 Mutations are applied using Babel AST analysis, so operators inside strings and comments are never touched. Mutated code is written to a temporary `__mutineer__` directory next to each source file, then loaded at runtime via Vite plugins (Vitest) or custom resolvers (Jest).
@@ -93,18 +93,22 @@ npm run mutineer
 
 ### CLI Options (for `mutineer run`)
 
-| Flag                     | Description                                | Default       |
-| ------------------------ | ------------------------------------------ | ------------- |
-| `--runner <type>`        | Test runner: `vitest` or `jest`            | `vitest`      |
-| `--config`, `-c`         | Path to config file                        | auto-detected |
-| `--concurrency <n>`      | Parallel workers (min 1)                   | CPUs - 1      |
-| `--changed`              | Only mutate files changed vs base branch   | --            |
-| `--changed-with-deps`    | Include dependents of changed files        | --            |
-| `--only-covered-lines`   | Skip mutations on uncovered lines          | --            |
-| `--per-test-coverage`    | Run only tests that cover the mutated line | --            |
-| `--coverage-file <path>` | Path to Istanbul coverage JSON             | auto-detected |
-| `--min-kill-percent <n>` | Fail if kill rate is below threshold       | --            |
-| `--progress <mode>`      | Display mode: `bar`, `list`, or `quiet`    | `bar`         |
+| Flag                     | Description                                                     | Default       |
+| ------------------------ | --------------------------------------------------------------- | ------------- |
+| `--runner <type>`        | Test runner: `vitest` or `jest`                                 | `vitest`      |
+| `--config`, `-c`         | Path to config file                                             | auto-detected |
+| `--concurrency <n>`      | Parallel workers (min 1)                                        | CPUs - 1      |
+| `--changed`              | Only mutate files changed vs base branch                        | --            |
+| `--changed-with-deps`    | Include dependents of changed files                             | --            |
+| `--only-covered-lines`   | Skip mutations on uncovered lines                               | --            |
+| `--per-test-coverage`    | Run only tests that cover the mutated line                      | --            |
+| `--coverage-file <path>` | Path to Istanbul coverage JSON                                  | auto-detected |
+| `--min-kill-percent <n>` | Fail if kill rate is below threshold                            | --            |
+| `--progress <mode>`      | Display mode: `bar`, `list`, or `quiet`                         | `bar`         |
+| `--timeout <ms>`         | Per-mutant test timeout                                         | `30000`       |
+| `--report <format>`      | Output format: `text` or `json` (writes `mutineer-report.json`) | `text`        |
+| `--shard <n>/<total>`    | Run a slice of mutants (e.g. `--shard 1/4`)                     | --            |
+| `--skip-baseline`        | Skip the baseline test run                                      | --            |
 
 ### Examples
 
@@ -165,6 +169,17 @@ export default defineMutineerConfig({
 ## Recommended Workflow
 
 Large repos can generate thousands of mutations. These strategies keep runs fast and incremental.
+
+When you run `mutineer run` without `--changed` or `--changed-with-deps` on an interactive terminal, mutineer warns you and lets you narrow scope before starting:
+
+```
+Warning: Running on the full codebase may take a while.
+
+  [1] Continue (full codebase)
+  [2] --changed          (git-changed files only)
+  [3] --changed-with-deps (changed + their local deps)
+  [4] Abort
+```
 
 ### 1. PR-scoped runs (CI) — `--changed-with-deps`
 
@@ -261,6 +276,7 @@ export function createMyRunnerAdapter(
 The key requirement is the **file-swap mechanism** -- the adapter needs a way to intercept module resolution so the mutated source code is loaded instead of the original file on disk. See the Vitest adapter (Vite plugin + ESM loader) and Jest adapter (custom resolver) for working reference implementations in `src/runner/vitest/` and `src/runner/jest/`.
 
 ## Maintainers
+
 - [Billy Jones](https://www.linkedin.com/in/billyjonesy/)
 
 ## License
