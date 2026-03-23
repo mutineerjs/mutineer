@@ -163,80 +163,6 @@ describe('summary', () => {
     logSpy.mockRestore()
   })
 
-  it('suppresses passingTests block when skipPassingTests is true', () => {
-    const cache = {
-      a: makeEntry({
-        status: 'escaped',
-        passingTests: ['Suite > test one'],
-      }),
-    }
-    const summary = computeSummary(cache)
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
-
-    printSummary(summary, cache, undefined, { skipPassingTests: true })
-
-    const lines = logSpy.mock.calls.map((c) => stripAnsi(c.join(' ')))
-    expect(lines.some((l) => l.includes('Passed without catching'))).toBe(false)
-    expect(lines.some((l) => l.includes('Suite > test one'))).toBe(false)
-
-    logSpy.mockRestore()
-  })
-
-  it('prints passingTests block for escaped mutant', () => {
-    const cache = {
-      a: makeEntry({
-        status: 'escaped',
-        passingTests: ['Suite > test one', 'Suite > test two'],
-      }),
-    }
-    const summary = computeSummary(cache)
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
-
-    printSummary(summary, cache)
-
-    const lines = logSpy.mock.calls.map((c) => stripAnsi(c.join(' ')))
-    expect(lines.some((l) => l.includes('Passed without catching'))).toBe(true)
-    expect(lines.some((l) => l.includes('Suite > test one'))).toBe(true)
-    expect(lines.some((l) => l.includes('Suite > test two'))).toBe(true)
-
-    logSpy.mockRestore()
-  })
-
-  it('caps passingTests display at 5 and shows overflow count', () => {
-    const cache = {
-      a: makeEntry({
-        status: 'escaped',
-        passingTests: ['t1', 't2', 't3', 't4', 't5', 't6', 't7'],
-      }),
-    }
-    const summary = computeSummary(cache)
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
-
-    printSummary(summary, cache)
-
-    const lines = logSpy.mock.calls.map((c) => stripAnsi(c.join(' ')))
-    expect(lines.some((l) => l.includes('t5'))).toBe(true)
-    expect(lines.some((l) => l.includes('t6'))).toBe(false)
-    expect(lines.some((l) => l.includes('+2 more'))).toBe(true)
-
-    logSpy.mockRestore()
-  })
-
-  it('does not print passingTests block when absent', () => {
-    const cache = {
-      a: makeEntry({ status: 'escaped' }),
-    }
-    const summary = computeSummary(cache)
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
-
-    printSummary(summary, cache)
-
-    const lines = logSpy.mock.calls.map((c) => stripAnsi(c.join(' ')))
-    expect(lines.some((l) => l.includes('Passed without catching'))).toBe(false)
-
-    logSpy.mockRestore()
-  })
-
   it('buildJsonReport includes passingTests when present', () => {
     const cache = {
       a: makeEntry({
@@ -321,59 +247,19 @@ describe('summary', () => {
     expect('coveringTests' in report.mutants[0]).toBe(false)
   })
 
-  it('prints compile error mutants section by default', () => {
-    const cache = {
-      a: makeEntry({
-        status: 'compile-error',
-        file: '/tmp/a.ts',
-        mutator: 'returnToNull',
-      }),
-    }
+  it('prints report hint line', () => {
+    const cache = { a: makeEntry({ status: 'killed' }) }
     const summary = computeSummary(cache)
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
 
     printSummary(summary, cache)
 
     const lines = logSpy.mock.calls.map((c) => stripAnsi(c.join(' ')))
-    expect(lines.some((l) => l.includes('Compile Error Mutants'))).toBe(true)
-
-    logSpy.mockRestore()
-  })
-
-  it('skips compile error section when skipCompileErrors is true', () => {
-    const cache = {
-      a: makeEntry({
-        status: 'compile-error',
-        file: '/tmp/a.ts',
-        mutator: 'returnToNull',
-      }),
-    }
-    const summary = computeSummary(cache)
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
-
-    printSummary(summary, cache, undefined, { skipCompileErrors: true })
-
-    const lines = logSpy.mock.calls.map((c) => stripAnsi(c.join(' ')))
-    expect(lines.some((l) => l.includes('Compile Error Mutants'))).toBe(false)
-
-    logSpy.mockRestore()
-  })
-
-  it('shows compile error section when skipCompileErrors is false', () => {
-    const cache = {
-      a: makeEntry({
-        status: 'compile-error',
-        file: '/tmp/a.ts',
-        mutator: 'returnToNull',
-      }),
-    }
-    const summary = computeSummary(cache)
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
-
-    printSummary(summary, cache, undefined, { skipCompileErrors: false })
-
-    const lines = logSpy.mock.calls.map((c) => stripAnsi(c.join(' ')))
-    expect(lines.some((l) => l.includes('Compile Error Mutants'))).toBe(true)
+    expect(
+      lines.some((l) =>
+        l.includes('Run with --report json to see full mutation details.'),
+      ),
+    ).toBe(true)
 
     logSpy.mockRestore()
   })

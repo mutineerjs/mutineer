@@ -63,7 +63,6 @@ export function printSummary(
   summary: Summary,
   cache?: Readonly<Record<string, MutantCacheEntry>>,
   durationMs?: number,
-  opts?: { skipCompileErrors?: boolean; skipPassingTests?: boolean },
 ): void {
   console.log('\n' + chalk.dim(SEPARATOR))
   console.log(chalk.bold(' Mutineer Test Suite Summary'))
@@ -140,24 +139,7 @@ export function printSummary(
           )
         }
       }
-      if (!opts?.skipPassingTests && entry.passingTests?.length) {
-        console.log('    ' + chalk.dim('Passed without catching:'))
-        const shown = entry.passingTests.slice(0, 5)
-        for (const t of shown) {
-          console.log('      ' + chalk.dim('· ' + t))
-        }
-        if (entry.passingTests.length > 5) {
-          console.log(
-            '      ' + chalk.dim(`+${entry.passingTests.length - 5} more`),
-          )
-        }
-      }
     }
-  }
-  if (entriesByStatus.compileErrors.length && !opts?.skipCompileErrors) {
-    console.log('\n' + chalk.dim('Compile Error Mutants (type-filtered):'))
-    for (const entry of entriesByStatus.compileErrors)
-      console.log('  ' + formatRow(entry))
   }
   if (entriesByStatus.timeouts.length) {
     console.log('\n' + chalk.yellow.bold('Timed Out Mutants:'))
@@ -198,6 +180,7 @@ export function printSummary(
     console.log(`Duration: ${chalk.cyan(formatDuration(durationMs))}`)
   }
 
+  console.log(chalk.dim('Run with --report json to see full mutation details.'))
   console.log(chalk.dim(SEPARATOR) + '\n')
 }
 

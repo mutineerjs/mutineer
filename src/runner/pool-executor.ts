@@ -15,8 +15,6 @@ import {
 import { saveCacheAtomic } from './cache.js'
 import { cleanupMutineerDirs } from './cleanup.js'
 import { PoolSpinner } from '../utils/PoolSpinner.js'
-import { CompileErrors } from '../utils/CompileErrors.js'
-import { EscapedTests } from '../utils/EscapedTests.js'
 import { createLogger } from '../utils/logger.js'
 
 const log = createLogger('pool-executor')
@@ -53,7 +51,7 @@ export async function executePool(opts: PoolExecutionOptions): Promise<void> {
 
   // Ensure we only finish once
   let finished = false
-  const finishOnce = async (interactive = true) => {
+  const finishOnce = async () => {
     if (finished) return
     finished = true
     const durationMs = Date.now() - mutationStartTime
@@ -70,32 +68,7 @@ export async function executePool(opts: PoolExecutionOptions): Promise<void> {
         `JSON report written to ${path.relative(process.cwd(), outPath)}`,
       )
     } else {
-      const compileErrorEntries = Object.values(cache).filter(
-        (e) => e.status === 'compile-error',
-      )
-      const escapedWithTests = Object.values(cache).filter(
-        (e) => e.status === 'escaped' && e.passingTests?.length,
-      )
-      const useInteractive =
-        interactive && process.stdout.isTTY && compileErrorEntries.length > 0
-      const useInteractiveEscaped =
-        interactive && process.stdout.isTTY && escapedWithTests.length > 0
-      printSummary(summary, cache, durationMs, {
-        skipCompileErrors: useInteractive,
-        skipPassingTests: useInteractiveEscaped,
-      })
-      if (useInteractive) {
-        const { waitUntilExit } = render(
-          createElement(CompileErrors, { entries: compileErrorEntries, cwd }),
-        )
-        await waitUntilExit()
-      }
-      if (useInteractiveEscaped) {
-        const { waitUntilExit } = render(
-          createElement(EscapedTests, { entries: escapedWithTests, cwd }),
-        )
-        await waitUntilExit()
-      }
+      printSummary(summary, cache, durationMs)
     }
     if (opts.minKillPercent !== undefined) {
       const killRateString = summary.killRate.toFixed(2)
@@ -243,7 +216,7 @@ export async function executePool(opts: PoolExecutionOptions): Promise<void> {
     if (signalCleanedUp) return
     signalCleanedUp = true
     log.info(`\nReceived ${signal}, cleaning up...`)
-    await finishOnce(false)
+    await finishOnce()
     await adapter.shutdown()
     await cleanupMutineerDirs(cwd)
     process.exit(1)
