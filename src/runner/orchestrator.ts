@@ -172,14 +172,27 @@ export async function runOrchestrator(cliArgs: string[], cwd: string) {
   if (opts.skipBaseline) {
     log.info('Skipping baseline tests (--skip-baseline)')
   } else {
-    log.info(
-      `Running ${baselineTests.length} baseline tests${coverage.enableCoverageForBaseline ? ' (collecting coverage)' : ''}\u2026`,
-    )
+    const baselineMsg = `Running ${baselineTests.length} baseline tests${coverage.enableCoverageForBaseline ? ' (collecting coverage)' : ''}\u2026`
+    let baselineSpinner: Instance | null = null
+    if (process.stderr.isTTY) {
+      baselineSpinner = render(
+        createElement(PoolSpinner, { message: baselineMsg }),
+        { stdout: process.stderr, stderr: process.stderr },
+      )
+    } else {
+      log.info(baselineMsg)
+    }
 
-    const baselineOk = await adapter.runBaseline(baselineTests, {
-      collectCoverage: coverage.enableCoverageForBaseline,
-      perTestCoverage: coverage.wantsPerTestCoverage,
-    })
+    let baselineOk: boolean
+    try {
+      baselineOk = await adapter.runBaseline(baselineTests, {
+        collectCoverage: coverage.enableCoverageForBaseline,
+        perTestCoverage: coverage.wantsPerTestCoverage,
+      })
+    } finally {
+      baselineSpinner?.unmount()
+    }
+
     if (!baselineOk) {
       process.exitCode = 1
       return
