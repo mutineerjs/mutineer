@@ -1,6 +1,20 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import type { MutineerConfig } from '../../types/config.js'
 
+const { mockLogDebug } = vi.hoisted(() => ({ mockLogDebug: vi.fn() }))
+vi.mock('../../utils/logger.js', () => ({
+  createLogger: () => ({
+    debug: mockLogDebug,
+    info: (...args: unknown[]) =>
+      console.log(...(args as [unknown, ...unknown[]])),
+    warn: (...args: unknown[]) =>
+      console.warn(...(args as [unknown, ...unknown[]])),
+    error: (...args: unknown[]) =>
+      console.error(...(args as [unknown, ...unknown[]])),
+  }),
+  DEBUG: true,
+}))
+
 // Mock all heavy dependencies before importing orchestrator
 vi.mock('../config.js', () => ({
   loadMutineerConfig: vi.fn(),
@@ -50,6 +64,19 @@ vi.mock('../variants.js', () => ({
 vi.mock('../tasks.js', () => ({
   prepareTasks: vi.fn().mockReturnValue([]),
 }))
+vi.mock('../ts-checker.js', () => ({
+  checkTypes: vi.fn().mockResolvedValue(new Set()),
+  resolveTypescriptEnabled: vi.fn().mockReturnValue(false),
+  resolveTsconfigPath: vi.fn().mockReturnValue(undefined),
+}))
+vi.mock('../../core/schemata.js', () => ({
+  generateSchema: vi
+    .fn()
+    .mockReturnValue({
+      schemaCode: '// @ts-nocheck\n',
+      fallbackIds: new Set(),
+    }),
+}))
 import { runOrchestrator, parseMutantTimeoutMs } from '../orchestrator.js'
 import { loadMutineerConfig } from '../config.js'
 import { createVitestAdapter, type VitestAdapter } from '../vitest/index.js'
@@ -59,6 +86,10 @@ import { executePool } from '../pool-executor.js'
 import { prepareTasks, type MutantTask } from '../tasks.js'
 import { enumerateAllVariants } from '../variants.js'
 import type { Variant } from '../../types/mutant.js'
+import { generateSchema } from '../../core/schemata.js'
+import os from 'node:os'
+import fssync from 'node:fs'
+import path from 'node:path'
 
 const mockAdapter = {
   name: 'vitest',
@@ -334,18 +365,22 @@ describe('runOrchestrator shard filtering', () => {
   const targetFile = '/cwd/src/foo.ts'
   const testFile = '/cwd/src/__tests__/foo.spec.ts'
 
+  function makeVariant(id: string): Variant {
+    return {
+      id,
+      name: 'flipEQ',
+      file: targetFile,
+      code: '',
+      line: 1,
+      col: 0,
+      tests: [testFile],
+    }
+  }
+
   function makeTask(key: string): MutantTask {
     return {
       key,
-      v: {
-        id: `${key}`,
-        name: 'flipEQ',
-        file: targetFile,
-        code: '',
-        line: 1,
-        col: 0,
-        tests: [testFile],
-      },
+      v: makeVariant(key),
       tests: [testFile],
     }
   }
@@ -365,33 +400,37 @@ describe('runOrchestrator shard filtering', () => {
       directTestMap: new Map(),
     })
     vi.mocked(mockAdapter.runBaseline).mockResolvedValue(true)
-    // Return a non-empty variants array so orchestrator doesn't exit early
-    vi.mocked(enumerateAllVariants).mockResolvedValue([{} as Variant])
-    const tasks = ['k0', 'k1', 'k2', 'k3'].map(makeTask)
-    vi.mocked(prepareTasks).mockReturnValue(tasks)
+    // Return 4 variants so shard filtering can split them across shards
+    vi.mocked(enumerateAllVariants).mockResolvedValue(
+      ['k0', 'k1', 'k2', 'k3'].map(makeVariant),
+    )
+    // Map each variant to a task by its id
+    vi.mocked(prepareTasks).mockImplementation((variants) =>
+      (variants as Variant[]).map((v) => makeTask(v.id)),
+    )
   })
 
   afterEach(() => {
     process.exitCode = undefined
   })
 
-  it('shard 1/2 assigns even-indexed tasks', async () => {
+  it('shard 1/2 assigns even-indexed variants', async () => {
     await runOrchestrator(['--shard', '1/2'], '/cwd')
 
     const call = vi.mocked(executePool).mock.calls[0][0]
     expect(call.tasks.map((t) => t.key)).toEqual(['k0', 'k2'])
   })
 
-  it('shard 2/2 assigns odd-indexed tasks', async () => {
+  it('shard 2/2 assigns odd-indexed variants', async () => {
     await runOrchestrator(['--shard', '2/2'], '/cwd')
 
     const call = vi.mocked(executePool).mock.calls[0][0]
     expect(call.tasks.map((t) => t.key)).toEqual(['k1', 'k3'])
   })
 
-  it('does not call executePool when shard has no tasks', async () => {
-    // Only 1 task total; shard 2/2 gets nothing
-    vi.mocked(prepareTasks).mockReturnValue([makeTask('only')])
+  it('does not call executePool when shard has no variants', async () => {
+    // Only 1 variant total; shard 2/2 gets nothing
+    vi.mocked(enumerateAllVariants).mockResolvedValue([makeVariant('only')])
 
     await runOrchestrator(['--shard', '2/2'], '/cwd')
 
@@ -403,5 +442,173 @@ describe('runOrchestrator shard filtering', () => {
 
     const call = vi.mocked(executePool).mock.calls[0][0]
     expect(call.shard).toEqual({ index: 1, total: 4 })
+  })
+})
+
+describe('runOrchestrator --skip-baseline', () => {
+  const targetFile = '/cwd/src/foo.ts'
+  const testFile = '/cwd/src/__tests__/foo.spec.ts'
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    process.exitCode = undefined
+    vi.mocked(createVitestAdapter).mockReturnValue(
+      mockAdapter as unknown as VitestAdapter,
+    )
+    vi.mocked(loadMutineerConfig).mockResolvedValue({})
+    vi.mocked(autoDiscoverTargetsAndTests).mockResolvedValue({
+      targets: [targetFile],
+      testMap: new Map([[targetFile, new Set([testFile])]]),
+      directTestMap: new Map(),
+    })
+  })
+
+  afterEach(() => {
+    process.exitCode = undefined
+  })
+
+  it('does not call adapter.runBaseline when --skip-baseline is passed', async () => {
+    await runOrchestrator(['--skip-baseline'], '/cwd')
+
+    expect(mockAdapter.runBaseline).not.toHaveBeenCalled()
+  })
+
+  it('logs skip message when --skip-baseline is passed', async () => {
+    const consoleSpy = vi.spyOn(console, 'log')
+
+    await runOrchestrator(['--skip-baseline'], '/cwd')
+
+    expect(consoleSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Skipping baseline tests (--skip-baseline)'),
+    )
+  })
+
+  it('still calls adapter.runBaseline when --skip-baseline is absent', async () => {
+    vi.mocked(mockAdapter.runBaseline).mockResolvedValue(true)
+
+    await runOrchestrator([], '/cwd')
+
+    expect(mockAdapter.runBaseline).toHaveBeenCalledOnce()
+  })
+})
+
+describe('runOrchestrator schema generation', () => {
+  let tmpDir: string
+  const testFile = '/cwd/src/__tests__/foo.spec.ts'
+
+  beforeEach(() => {
+    tmpDir = fssync.mkdtempSync(path.join(os.tmpdir(), 'mutineer-orch-schema-'))
+    vi.clearAllMocks()
+    process.exitCode = undefined
+    vi.mocked(createVitestAdapter).mockReturnValue(
+      mockAdapter as unknown as VitestAdapter,
+    )
+    vi.mocked(loadMutineerConfig).mockResolvedValue({})
+    vi.mocked(mockAdapter.runBaseline).mockResolvedValue(true)
+  })
+
+  afterEach(() => {
+    process.exitCode = undefined
+    fssync.rmSync(tmpDir, { recursive: true, force: true })
+  })
+
+  it('calls generateSchema and passes fallbackIds to executePool', async () => {
+    const sourceFile = path.join(tmpDir, 'source.ts')
+    fssync.writeFileSync(sourceFile, 'const x = 1 + 2', 'utf8')
+
+    const variant: Variant = {
+      id: 'source.ts#0',
+      name: 'flipArith',
+      file: sourceFile,
+      code: 'const x = 1 - 2',
+      line: 1,
+      col: 10,
+      tests: [testFile],
+    }
+    vi.mocked(autoDiscoverTargetsAndTests).mockResolvedValue({
+      targets: [sourceFile],
+      testMap: new Map([[sourceFile, new Set([testFile])]]),
+      directTestMap: new Map(),
+    })
+    vi.mocked(enumerateAllVariants).mockResolvedValue([variant])
+    vi.mocked(prepareTasks).mockReturnValue([
+      {
+        key: 'schema-test-key',
+        v: variant,
+        tests: [testFile],
+      },
+    ])
+    const mockFallbacks = new Set(['source.ts#0'])
+    vi.mocked(generateSchema).mockReturnValue({
+      schemaCode: '// @ts-nocheck\nconst x = 1',
+      fallbackIds: mockFallbacks,
+    })
+
+    await runOrchestrator([], tmpDir)
+
+    expect(generateSchema).toHaveBeenCalledWith(expect.any(String), [variant])
+    const call = vi.mocked(executePool).mock.calls[0][0]
+    expect(call.fallbackIds).toStrictEqual(mockFallbacks)
+  })
+
+  it('treats all variants as fallback when source file read fails', async () => {
+    const missingFile = path.join(tmpDir, 'nonexistent.ts')
+    const variant: Variant = {
+      id: 'nonexistent.ts#0',
+      name: 'test',
+      file: missingFile,
+      code: 'x',
+      line: 1,
+      col: 0,
+      tests: [testFile],
+    }
+    vi.mocked(autoDiscoverTargetsAndTests).mockResolvedValue({
+      targets: [missingFile],
+      testMap: new Map([[missingFile, new Set([testFile])]]),
+      directTestMap: new Map(),
+    })
+    vi.mocked(enumerateAllVariants).mockResolvedValue([variant])
+    vi.mocked(prepareTasks).mockReturnValue([
+      { key: 'fallback-key', v: variant, tests: [testFile] },
+    ])
+
+    await runOrchestrator([], tmpDir)
+
+    const call = vi.mocked(executePool).mock.calls[0][0]
+    expect(call.fallbackIds?.has('nonexistent.ts#0')).toBe(true)
+  })
+
+  it('logs embedded and fallback schema counts', async () => {
+    const sourceFile = path.join(tmpDir, 'source.ts')
+    fssync.writeFileSync(sourceFile, 'const x = 1 + 2', 'utf8')
+
+    const variant: Variant = {
+      id: 'source.ts#0',
+      name: 'flipArith',
+      file: sourceFile,
+      code: 'const x = 1 - 2',
+      line: 1,
+      col: 10,
+      tests: [testFile],
+    }
+    vi.mocked(autoDiscoverTargetsAndTests).mockResolvedValue({
+      targets: [sourceFile],
+      testMap: new Map([[sourceFile, new Set([testFile])]]),
+      directTestMap: new Map(),
+    })
+    vi.mocked(enumerateAllVariants).mockResolvedValue([variant])
+    vi.mocked(prepareTasks).mockReturnValue([
+      { key: 'log-test-key', v: variant, tests: [testFile] },
+    ])
+    vi.mocked(generateSchema).mockReturnValue({
+      schemaCode: '// @ts-nocheck\n',
+      fallbackIds: new Set(),
+    })
+
+    await runOrchestrator([], tmpDir)
+
+    expect(mockLogDebug).toHaveBeenCalledWith(
+      expect.stringMatching(/Schema: 1 embedded, 0 fallback/),
+    )
   })
 })

@@ -351,6 +351,46 @@ describe('parseCliOptions', () => {
     } as any)
     expect(opts.reportFormat).toBe('json')
   })
+
+  it('parses --typescript flag', () => {
+    const opts = parseCliOptions(['--typescript'], emptyCfg)
+    expect(opts.typescriptCheck).toBe(true)
+  })
+
+  it('parses --no-typescript flag', () => {
+    const opts = parseCliOptions(['--no-typescript'], emptyCfg)
+    expect(opts.typescriptCheck).toBe(false)
+  })
+
+  it('defaults typescriptCheck to undefined', () => {
+    const opts = parseCliOptions([], emptyCfg)
+    expect(opts.typescriptCheck).toBeUndefined()
+  })
+
+  it('--typescript takes precedence over --no-typescript (first one wins)', () => {
+    const opts = parseCliOptions(['--typescript', '--no-typescript'], emptyCfg)
+    expect(opts.typescriptCheck).toBe(true)
+  })
+
+  it('parses --vitest-project flag', () => {
+    const opts = parseCliOptions(['--vitest-project', 'my-pkg'], emptyCfg)
+    expect(opts.vitestProject).toBe('my-pkg')
+  })
+
+  it('defaults vitestProject to undefined', () => {
+    const opts = parseCliOptions([], emptyCfg)
+    expect(opts.vitestProject).toBeUndefined()
+  })
+
+  it('parses --skip-baseline flag', () => {
+    const opts = parseCliOptions(['--skip-baseline'], emptyCfg)
+    expect(opts.skipBaseline).toBe(true)
+  })
+
+  it('defaults skipBaseline to false', () => {
+    const opts = parseCliOptions([], emptyCfg)
+    expect(opts.skipBaseline).toBe(false)
+  })
 })
 
 describe('validatePositiveMs', () => {

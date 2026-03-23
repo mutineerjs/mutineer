@@ -8,7 +8,7 @@ export async function cleanupMutineerDirs(
   opts: { includeCacheFiles?: boolean } = {},
 ): Promise<void> {
   const glob = await import('fast-glob')
-  const dirs = await glob.default('**/__mutineer__', {
+  const dirs = await glob.default(['__mutineer__', '**/__mutineer__'], {
     cwd,
     onlyDirectories: true,
     absolute: true,

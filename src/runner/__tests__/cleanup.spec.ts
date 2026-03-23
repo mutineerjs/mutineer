@@ -25,6 +25,16 @@ describe('cleanupMutineerDirs', () => {
     await expect(fs.access(mutDir)).rejects.toThrow()
   })
 
+  it('removes root-level __mutineer__ directory', async () => {
+    const rootMutDir = path.join(tmpDir, '__mutineer__')
+    await fs.mkdir(rootMutDir, { recursive: true })
+    await fs.writeFile(path.join(rootMutDir, 'setup.mjs'), 'content')
+
+    await cleanupMutineerDirs(tmpDir)
+
+    await expect(fs.access(rootMutDir)).rejects.toThrow()
+  })
+
   it('removes nested __mutineer__ directories', async () => {
     const dir1 = path.join(tmpDir, 'src', 'a', '__mutineer__')
     const dir2 = path.join(tmpDir, 'src', 'b', '__mutineer__')

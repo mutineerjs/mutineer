@@ -7,4 +7,5 @@ export default defineMutineerConfig({
   minKillPercent: 60,
   vitestConfig: 'vitest.config.ts',
   onlyCoveredLines: true,
+  perTestCoverage: true,
 })

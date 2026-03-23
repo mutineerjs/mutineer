@@ -5,7 +5,11 @@
  * including mutant file path generation and redirect state management.
  */
 
-export { getMutantFilePath } from './mutant-paths.js'
+export {
+  getMutantFilePath,
+  getSchemaFilePath,
+  getActiveIdFilePath,
+} from './mutant-paths.js'
 export {
   setRedirect,
   getRedirect,

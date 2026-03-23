@@ -27,15 +27,18 @@ describe('summary', () => {
       a: makeEntry({ status: 'killed' }),
       b: makeEntry({ status: 'escaped' }),
       c: makeEntry({ status: 'skipped' }),
+      d: makeEntry({ status: 'timeout' }),
     }
 
     const s = computeSummary(cache)
 
     expect(s).toEqual({
-      total: 3,
+      total: 4,
       killed: 1,
       escaped: 1,
       skipped: 1,
+      timeouts: 1,
+      compileErrors: 0,
       evaluated: 2,
       killRate: 50,
     })
@@ -55,6 +58,52 @@ describe('summary', () => {
     expect(lines.some((l) => l.includes('Killed Mutants'))).toBe(true)
     expect(lines.some((l) => l.includes('Escaped Mutants'))).toBe(true)
     expect(lines.some((l) => l.includes('Duration: 1.50s'))).toBe(true)
+
+    logSpy.mockRestore()
+  })
+
+  it('prints Timed Out Mutants section when timeouts exist', () => {
+    const cache = {
+      a: makeEntry({ status: 'timeout', file: '/tmp/a.ts', mutator: 'flip' }),
+    }
+    const summary = computeSummary(cache)
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    printSummary(summary, cache)
+
+    const lines = logSpy.mock.calls.map((c) => stripAnsi(c.join(' ')))
+    expect(lines.some((l) => l.includes('Timed Out Mutants'))).toBe(true)
+
+    logSpy.mockRestore()
+  })
+
+  it('shows Timeouts count in stat line when timeouts > 0', () => {
+    const cache = {
+      a: makeEntry({ status: 'timeout', file: '/tmp/a.ts' }),
+      b: makeEntry({ status: 'killed', file: '/tmp/b.ts' }),
+    }
+    const summary = computeSummary(cache)
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    printSummary(summary, cache)
+
+    const lines = logSpy.mock.calls.map((c) => stripAnsi(c.join(' ')))
+    expect(lines.some((l) => l.includes('Timeouts: 1'))).toBe(true)
+
+    logSpy.mockRestore()
+  })
+
+  it('shows Timeouts: 0 in stat line when timeouts is zero', () => {
+    const cache = {
+      a: makeEntry({ status: 'killed', file: '/tmp/a.ts' }),
+    }
+    const summary = computeSummary(cache)
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    printSummary(summary, cache)
+
+    const lines = logSpy.mock.calls.map((c) => stripAnsi(c.join(' ')))
+    expect(lines.some((l) => l.includes('Timeouts: 0'))).toBe(true)
 
     logSpy.mockRestore()
   })
@@ -175,6 +224,63 @@ describe('summary', () => {
     expect('durationMs' in report).toBe(false)
     expect('originalSnippet' in report.mutants[0]).toBe(false)
     expect('coveringTests' in report.mutants[0]).toBe(false)
+  })
+
+  it('prints compile error mutants section by default', () => {
+    const cache = {
+      a: makeEntry({
+        status: 'compile-error',
+        file: '/tmp/a.ts',
+        mutator: 'returnToNull',
+      }),
+    }
+    const summary = computeSummary(cache)
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    printSummary(summary, cache)
+
+    const lines = logSpy.mock.calls.map((c) => stripAnsi(c.join(' ')))
+    expect(lines.some((l) => l.includes('Compile Error Mutants'))).toBe(true)
+
+    logSpy.mockRestore()
+  })
+
+  it('skips compile error section when skipCompileErrors is true', () => {
+    const cache = {
+      a: makeEntry({
+        status: 'compile-error',
+        file: '/tmp/a.ts',
+        mutator: 'returnToNull',
+      }),
+    }
+    const summary = computeSummary(cache)
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    printSummary(summary, cache, undefined, { skipCompileErrors: true })
+
+    const lines = logSpy.mock.calls.map((c) => stripAnsi(c.join(' ')))
+    expect(lines.some((l) => l.includes('Compile Error Mutants'))).toBe(false)
+
+    logSpy.mockRestore()
+  })
+
+  it('shows compile error section when skipCompileErrors is false', () => {
+    const cache = {
+      a: makeEntry({
+        status: 'compile-error',
+        file: '/tmp/a.ts',
+        mutator: 'returnToNull',
+      }),
+    }
+    const summary = computeSummary(cache)
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    printSummary(summary, cache, undefined, { skipCompileErrors: false })
+
+    const lines = logSpy.mock.calls.map((c) => stripAnsi(c.join(' ')))
+    expect(lines.some((l) => l.includes('Compile Error Mutants'))).toBe(true)
+
+    logSpy.mockRestore()
   })
 
   it('summarise returns summary and prints', () => {

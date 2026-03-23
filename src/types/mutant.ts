@@ -11,6 +11,7 @@ export type MutantStatus =
   | 'skipped'
   | 'error'
   | 'timeout'
+  | 'compile-error'
 export type MutantRunStatus = MutantStatus
 
 export interface MutantLocation {
@@ -26,7 +27,10 @@ export interface MutantDescriptor extends MutantLocation {
 }
 
 /** Payload passed to workers/pools for execution. */
-export type MutantPayload = MutantDescriptor
+export interface MutantPayload extends MutantDescriptor {
+  /** When true, this mutant must use the legacy redirect path instead of the schema path. */
+  readonly isFallback?: boolean
+}
 
 /** Variant with attached test files. */
 export interface Variant extends MutantDescriptor {

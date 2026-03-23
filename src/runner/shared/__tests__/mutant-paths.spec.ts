@@ -2,7 +2,11 @@ import { describe, it, expect, afterEach } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
-import { getMutantFilePath } from '../mutant-paths.js'
+import {
+  getMutantFilePath,
+  getSchemaFilePath,
+  getActiveIdFilePath,
+} from '../mutant-paths.js'
 
 let createdDirs: string[] = []
 
@@ -75,5 +79,41 @@ describe('getMutantFilePath', () => {
     // Should not throw
     const result = getMutantFilePath(srcFile, 'foo.ts#1')
     expect(result).toBe(path.join(mutineerDir, 'foo_1.ts'))
+  })
+})
+
+describe('getSchemaFilePath', () => {
+  it('returns path with _schema suffix and correct extension', () => {
+    const result = getSchemaFilePath('/src/foo.ts')
+    expect(result).toBe('/src/__mutineer__/foo_schema.ts')
+  })
+
+  it('preserves the original extension', () => {
+    const result = getSchemaFilePath('/src/component.vue')
+    expect(result).toBe('/src/__mutineer__/component_schema.vue')
+  })
+
+  it('does not create the __mutineer__ directory', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mutineer-schema-'))
+    createdDirs.push(tmpDir)
+    const srcFile = path.join(tmpDir, 'bar.ts')
+    const mutineerDir = path.join(tmpDir, '__mutineer__')
+
+    getSchemaFilePath(srcFile)
+
+    expect(fs.existsSync(mutineerDir)).toBe(false)
+  })
+})
+
+describe('getActiveIdFilePath', () => {
+  it('returns path under cwd/__mutineer__ keyed by workerId', () => {
+    const result = getActiveIdFilePath('w0', '/project')
+    expect(result).toBe('/project/__mutineer__/active_id_w0.txt')
+  })
+
+  it('produces distinct paths for different worker IDs', () => {
+    const a = getActiveIdFilePath('w0', '/cwd')
+    const b = getActiveIdFilePath('w1', '/cwd')
+    expect(a).not.toBe(b)
   })
 })

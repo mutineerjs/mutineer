@@ -121,6 +121,21 @@ describe('VitestWorkerRuntime', () => {
     await runtime.shutdown()
   })
 
+  it('passes maxWorkers: 1 and watch: false to createVitest to prevent fork resource contention and FS watcher re-runs', async () => {
+    const { createVitest } = await import('vitest/node')
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'mutineer-worker-'))
+    tmpFiles.push(tmp)
+    const runtime = createVitestWorkerRuntime({ workerId: 'w-mw', cwd: tmp })
+    await runtime.init()
+
+    expect(createVitest).toHaveBeenCalledWith(
+      'test',
+      expect.objectContaining({ maxWorkers: 1, watch: false }),
+      expect.any(Object),
+    )
+    await runtime.shutdown()
+  })
+
   it('handles non-Error thrown during run', async () => {
     runSpecsFn.mockRejectedValue('string error')
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'mutineer-worker-'))
@@ -197,6 +212,140 @@ describe('VitestWorkerRuntime', () => {
     )
 
     expect(result.killed).toBe(false)
+    await runtime.shutdown()
+  })
+
+  it('writes setup.mjs when MUTINEER_ACTIVE_ID_FILE is set', async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'mutineer-worker-setup-'))
+    tmpFiles.push(tmp)
+    const activeIdFile = path.join(tmp, '__mutineer__', 'active_id_wx.txt')
+    const origEnv = process.env.MUTINEER_ACTIVE_ID_FILE
+    process.env.MUTINEER_ACTIVE_ID_FILE = activeIdFile
+
+    try {
+      const runtime = createVitestWorkerRuntime({ workerId: 'wx', cwd: tmp })
+      await runtime.init()
+
+      const setupFile = path.join(tmp, '__mutineer__', 'setup.mjs')
+      expect(fs.existsSync(setupFile)).toBe(true)
+      expect(fs.readFileSync(setupFile, 'utf8')).toContain('beforeAll')
+      await runtime.shutdown()
+    } finally {
+      if (origEnv === undefined) {
+        delete process.env.MUTINEER_ACTIVE_ID_FILE
+      } else {
+        process.env.MUTINEER_ACTIVE_ID_FILE = origEnv
+      }
+    }
+  })
+
+  it('uses schema path when isFallback is false and MUTINEER_ACTIVE_ID_FILE is set', async () => {
+    const tmp = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'mutineer-worker-schema-'),
+    )
+    tmpFiles.push(tmp)
+    const activeIdFile = path.join(tmp, '__mutineer__', 'active_id_ws.txt')
+    const origEnv = process.env.MUTINEER_ACTIVE_ID_FILE
+    process.env.MUTINEER_ACTIVE_ID_FILE = activeIdFile
+
+    try {
+      const runtime = createVitestWorkerRuntime({ workerId: 'ws', cwd: tmp })
+      await runtime.init()
+
+      await runtime.run(
+        {
+          id: 'mut#schema',
+          name: 'm',
+          file: path.join(tmp, 'src.ts'),
+          code: 'export const x=1',
+          line: 1,
+          col: 1,
+          isFallback: false,
+        },
+        [path.join(tmp, 'test.ts')],
+      )
+
+      // invalidateFile should NOT be called for schema path
+      expect(invalidateFn).not.toHaveBeenCalled()
+      // Active ID file should be cleared after run
+      expect(fs.readFileSync(activeIdFile, 'utf8')).toBe('')
+      await runtime.shutdown()
+    } finally {
+      if (origEnv === undefined) {
+        delete process.env.MUTINEER_ACTIVE_ID_FILE
+      } else {
+        process.env.MUTINEER_ACTIVE_ID_FILE = origEnv
+      }
+    }
+  })
+
+  it('uses fallback path when isFallback is true even if MUTINEER_ACTIVE_ID_FILE is set', async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'mutineer-worker-fb-'))
+    tmpFiles.push(tmp)
+    const activeIdFile = path.join(tmp, '__mutineer__', 'active_id_wf.txt')
+    const origEnv = process.env.MUTINEER_ACTIVE_ID_FILE
+    process.env.MUTINEER_ACTIVE_ID_FILE = activeIdFile
+
+    try {
+      const runtime = createVitestWorkerRuntime({ workerId: 'wf', cwd: tmp })
+      await runtime.init()
+
+      await runtime.run(
+        {
+          id: 'mut#fb',
+          name: 'm',
+          file: path.join(tmp, 'src.ts'),
+          code: 'export const x=1',
+          line: 1,
+          col: 1,
+          isFallback: true,
+        },
+        [path.join(tmp, 'test.ts')],
+      )
+
+      // invalidateFile SHOULD be called for fallback path
+      expect(invalidateFn).toHaveBeenCalledWith(path.join(tmp, 'src.ts'))
+      await runtime.shutdown()
+    } finally {
+      if (origEnv === undefined) {
+        delete process.env.MUTINEER_ACTIVE_ID_FILE
+      } else {
+        process.env.MUTINEER_ACTIVE_ID_FILE = origEnv
+      }
+    }
+  })
+
+  it('clears state.filesMap before each run to prevent memory accumulation', async () => {
+    const { createVitest } = await import('vitest/node')
+    const clearFn = vi.fn()
+    vi.mocked(createVitest).mockResolvedValueOnce({
+      init: initFn,
+      close: closeFn,
+      runTestSpecifications: runSpecsFn,
+      invalidateFile: invalidateFn,
+      getProjectByName: getProjectByNameFn,
+      state: { filesMap: { clear: clearFn } },
+    } as any)
+
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'mutineer-worker-state-'))
+    tmpFiles.push(tmp)
+    const runtime = createVitestWorkerRuntime({ workerId: 'w-state', cwd: tmp })
+    await runtime.init()
+
+    const mutant = {
+      id: 'mut#state',
+      name: 'm',
+      file: path.join(tmp, 'src.ts'),
+      code: 'export const x=1',
+      line: 1,
+      col: 1,
+    }
+    await runtime.run(mutant, [path.join(tmp, 'test.ts')])
+    await runtime.run({ ...mutant, id: 'mut#state2' }, [
+      path.join(tmp, 'test.ts'),
+    ])
+
+    expect(clearFn).toHaveBeenCalledTimes(2)
     await runtime.shutdown()
   })
 })

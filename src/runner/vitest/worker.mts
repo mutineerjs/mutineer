@@ -64,6 +64,7 @@ async function main(): Promise<void> {
   const workerId = process.env.MUTINEER_WORKER_ID ?? 'unknown'
   const cwd = process.env.MUTINEER_CWD ?? process.cwd()
   const vitestConfigPath = process.env.MUTINEER_VITEST_CONFIG
+  const vitestProject = process.env.MUTINEER_VITEST_PROJECT
 
   log.debug(`Starting worker ${workerId} in ${cwd}`)
 
@@ -71,6 +72,7 @@ async function main(): Promise<void> {
     workerId,
     cwd,
     vitestConfigPath,
+    vitestProject,
   })
 
   try {
@@ -82,6 +84,15 @@ async function main(): Promise<void> {
 
   // Signal ready
   send({ type: 'ready', workerId })
+
+  // Graceful SIGTERM handler: clean up Vitest inner forks before exiting.
+  // This runs when the parent kills the process group with SIGTERM (e.g.
+  // future graceful shutdown path). Vitest forks are in the same process
+  // group so they also receive the signal, but calling close() ensures the
+  // Vitest instance is torn down cleanly.
+  process.on('SIGTERM', () => {
+    void runtime.shutdown().finally(() => process.exit(0))
+  })
 
   // Process requests from stdin
   const rl = readline.createInterface({

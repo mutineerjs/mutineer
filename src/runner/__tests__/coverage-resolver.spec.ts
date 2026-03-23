@@ -25,6 +25,9 @@ function makeOpts(overrides: Partial<ParsedCliOptions> = {}): ParsedCliOptions {
     timeout: undefined,
     reportFormat: 'text',
     shard: undefined,
+    typescriptCheck: undefined,
+    vitestProject: undefined,
+    skipBaseline: false,
     ...overrides,
   }
 }

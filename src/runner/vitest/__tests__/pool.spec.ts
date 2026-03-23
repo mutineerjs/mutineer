@@ -192,4 +192,121 @@ describe('VitestPool', () => {
 
     expect(result.status).toBe('error')
   })
+
+  it('passes MUTINEER_ACTIVE_ID_FILE env var to worker process', async () => {
+    let capturedEnv: NodeJS.ProcessEnv | undefined
+
+    vi.mocked(childProcess.spawn).mockImplementationOnce(
+      (_cmd, _args, options) => {
+        capturedEnv = (options as any)?.env
+        const proc = new EventEmitter() as MockProc
+        proc.stdout = new EventEmitter()
+        proc.stderr = new EventEmitter()
+        proc.stdin = { writes: [], write: vi.fn() as any }
+        proc.kill = vi.fn()
+        return proc as unknown as childProcess.ChildProcess
+      },
+    )
+
+    const rl = new EventEmitter() as readline.Interface
+    vi.mocked(readline.createInterface).mockImplementationOnce(() => rl)
+
+    const cwd = '/my/project'
+    const pool = new VitestPool({ cwd, concurrency: 1 })
+
+    // Start init — synchronous part (spawn + createInterface) runs immediately
+    const initPromise = pool.init()
+    // Give event loop one tick so the async suspend in worker.start() is reached
+    await new Promise((resolve) => setImmediate(resolve))
+
+    // Verify env var was passed to spawn before completing init
+    expect(capturedEnv?.MUTINEER_ACTIVE_ID_FILE).toBe(
+      '/my/project/__mutineer__/active_id_w0.txt',
+    )
+
+    // Emit ready to unblock initPromise
+    rl.emit('line', JSON.stringify({ type: 'ready', workerId: 'w0' }))
+    await initPromise
+
+    // Shutdown: emit the shutdown response so worker.shutdown() resolves
+    const shutdownPromise = pool.shutdown()
+    await new Promise((resolve) => setImmediate(resolve))
+    rl.emit('line', JSON.stringify({ type: 'shutdown', ok: true }))
+    await shutdownPromise
+  })
+
+  it('spawns workers with detached: true for process group isolation', async () => {
+    let capturedOptions: childProcess.SpawnOptions | undefined
+
+    vi.mocked(childProcess.spawn).mockImplementationOnce(
+      (_cmd, _args, options) => {
+        capturedOptions = options as childProcess.SpawnOptions
+        const proc = new EventEmitter() as MockProc
+        proc.stdout = new EventEmitter()
+        proc.stderr = new EventEmitter()
+        proc.stdin = { writes: [], write: vi.fn() as any }
+        proc.kill = vi.fn()
+        return proc as unknown as childProcess.ChildProcess
+      },
+    )
+
+    const rl = new EventEmitter() as readline.Interface
+    vi.mocked(readline.createInterface).mockImplementationOnce(() => rl)
+
+    const pool = new VitestPool({ cwd: '/test', concurrency: 1 })
+    const initPromise = pool.init()
+    await new Promise((r) => setImmediate(r))
+
+    expect(capturedOptions?.detached).toBe(true)
+
+    rl.emit('line', JSON.stringify({ type: 'ready', workerId: 'w0' }))
+    await initPromise
+
+    const shutdownPromise = pool.shutdown()
+    await new Promise((r) => setImmediate(r))
+    rl.emit('line', JSON.stringify({ type: 'shutdown', ok: true }))
+    await shutdownPromise
+  })
+
+  it('kills entire process group (negative PID) on mutant run timeout', async () => {
+    const mockProc = new EventEmitter() as MockProc
+    mockProc.stdout = new EventEmitter()
+    mockProc.stderr = new EventEmitter()
+    mockProc.stdin = { writes: [], write: vi.fn() as any }
+    mockProc.kill = vi.fn()
+    ;(mockProc as any).pid = 42000
+
+    vi.mocked(childProcess.spawn).mockReturnValueOnce(
+      mockProc as unknown as childProcess.ChildProcess,
+    )
+    const rl = new EventEmitter() as readline.Interface
+    vi.mocked(readline.createInterface).mockReturnValueOnce(rl)
+
+    const killSpy = vi.spyOn(process, 'kill').mockReturnValue(true)
+
+    // Use a very short timeoutMs so the test doesn't wait long
+    const pool = new VitestPool({ cwd: '/test', concurrency: 1, timeoutMs: 50 })
+
+    const initPromise = pool.init()
+    await new Promise((r) => setImmediate(r))
+    rl.emit('line', JSON.stringify({ type: 'ready', workerId: 'w0' }))
+    await initPromise
+
+    const mutant: MutantPayload = {
+      id: 't1',
+      name: 'test',
+      file: 'a.ts',
+      code: 'x',
+      line: 1,
+      col: 1,
+    }
+
+    // Don't emit a 'result' line — let the 50ms timeout fire and call kill()
+    const result = await pool.run(mutant, ['a.spec.ts'])
+
+    expect(result).toMatchObject({ error: 'timeout' })
+    expect(killSpy).toHaveBeenCalledWith(-42000, 'SIGKILL')
+
+    killSpy.mockRestore()
+  })
 })

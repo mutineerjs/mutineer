@@ -11,8 +11,12 @@
  */
 
 import path from 'node:path'
+import fs from 'node:fs'
 import os from 'node:os'
+import { render, type Instance } from 'ink'
+import { createElement } from 'react'
 import { normalizePath } from '../utils/normalizePath.js'
+import { PoolSpinner } from '../utils/PoolSpinner.js'
 
 import { autoDiscoverTargetsAndTests } from './discover.js'
 import type { MutateTarget } from '../types/config.js'
@@ -25,12 +29,20 @@ import { createLogger } from '../utils/logger.js'
 import { extractConfigPath, parseCliOptions } from './args.js'
 import { clearCacheOnStart, readMutantCache } from './cache.js'
 import { getTargetFile, enumerateAllVariants } from './variants.js'
+import type { Variant } from '../types/mutant.js'
+import { generateSchema } from '../core/schemata.js'
+import { getSchemaFilePath } from './shared/mutant-paths.js'
 import {
   resolveCoverageConfig,
   loadCoverageAfterBaseline,
 } from './coverage-resolver.js'
 import { prepareTasks } from './tasks.js'
 import { executePool } from './pool-executor.js'
+import {
+  checkTypes,
+  resolveTypescriptEnabled,
+  resolveTsconfigPath,
+} from './ts-checker.js'
 
 const log = createLogger('orchestrator')
 
@@ -55,6 +67,10 @@ export async function runOrchestrator(cliArgs: string[], cwd: string) {
   await clearCacheOnStart(cwd, opts.shard)
 
   // Create test runner adapter
+  const vitestProject =
+    opts.vitestProject ??
+    (typeof cfg.vitestProject === 'string' ? cfg.vitestProject : undefined)
+
   const adapter = (
     opts.runner === 'jest' ? createJestAdapter : createVitestAdapter
   )({
@@ -63,6 +79,7 @@ export async function runOrchestrator(cliArgs: string[], cwd: string) {
     timeoutMs: opts.timeout ?? cfg.timeout ?? MUTANT_TIMEOUT_MS,
     config: cfg,
     cliArgs,
+    vitestProject,
   })
 
   // 2. Resolve coverage configuration
@@ -152,26 +169,30 @@ export async function runOrchestrator(cliArgs: string[], cwd: string) {
   }
 
   // 5. Run baseline tests (with coverage if needed for filtering)
-  log.info(
-    `Running ${baselineTests.length} baseline tests${coverage.enableCoverageForBaseline ? ' (collecting coverage)' : ''}\u2026`,
-  )
+  if (opts.skipBaseline) {
+    log.info('Skipping baseline tests (--skip-baseline)')
+  } else {
+    log.info(
+      `Running ${baselineTests.length} baseline tests${coverage.enableCoverageForBaseline ? ' (collecting coverage)' : ''}\u2026`,
+    )
 
-  const baselineOk = await adapter.runBaseline(baselineTests, {
-    collectCoverage: coverage.enableCoverageForBaseline,
-    perTestCoverage: coverage.wantsPerTestCoverage,
-  })
-  if (!baselineOk) {
-    process.exitCode = 1
-    return
+    const baselineOk = await adapter.runBaseline(baselineTests, {
+      collectCoverage: coverage.enableCoverageForBaseline,
+      perTestCoverage: coverage.wantsPerTestCoverage,
+    })
+    if (!baselineOk) {
+      process.exitCode = 1
+      return
+    }
+
+    log.info('\u2713 Baseline tests complete')
   }
-
-  log.info('\u2713 Baseline tests complete')
 
   // 6. Load coverage from baseline if we generated it
   const updatedCoverage = await loadCoverageAfterBaseline(coverage, cwd)
 
   // 7. Enumerate mutation variants
-  const variants = await enumerateAllVariants({
+  let variants = await enumerateAllVariants({
     cwd,
     targets,
     testMap,
@@ -188,23 +209,109 @@ export async function runOrchestrator(cliArgs: string[], cwd: string) {
     return
   }
 
-  // 8. Prepare tasks and execute via worker pool
-  let tasks = prepareTasks(
-    variants,
-    updatedCoverage.perTestCoverage,
-    directTestMap,
-  )
-
-  // Apply shard filter if requested
+  // Apply shard filter before type-checking so each shard only processes its own mutants
   if (opts.shard) {
     const { index, total } = opts.shard
-    tasks = tasks.filter((_, i) => i % total === index - 1)
-    log.info(`Shard ${index}/${total}: running ${tasks.length} mutant(s)`)
-    if (tasks.length === 0) {
-      log.info('No mutants assigned to this shard. Exiting.')
+    variants = variants.filter((_, i) => i % total === index - 1)
+    log.info(`Shard ${index}/${total}: scoped to ${variants.length} variant(s)`)
+    if (!variants.length) {
+      log.info('No mutants in this shard. Exiting.')
       return
     }
   }
+
+  // TypeScript pre-filtering (filter mutants that produce compile errors)
+  const tsEnabled = resolveTypescriptEnabled(opts.typescriptCheck, cfg, cwd)
+  let runnableVariants = variants
+  if (tsEnabled) {
+    // Only return-value mutants change the expression type — operator mutants
+    // (equality, arithmetic, logical, etc.) always preserve the type.
+    const returnValueVariants = variants.filter((v) =>
+      v.name.startsWith('return'),
+    )
+    log.info(
+      `Running TypeScript type checks on ${returnValueVariants.length} return-value mutant(s)...`,
+    )
+    const tsconfig = resolveTsconfigPath(cfg)
+    let tsSpinner: Instance | null = null
+    if (process.stderr.isTTY) {
+      tsSpinner = render(
+        createElement(PoolSpinner, {
+          message: `Type checking ${returnValueVariants.length} return-value mutant(s)...`,
+        }),
+        { stdout: process.stderr, stderr: process.stderr },
+      )
+    }
+    let compileErrorIds: Set<string>
+    try {
+      compileErrorIds = await checkTypes(returnValueVariants, tsconfig, cwd)
+    } finally {
+      tsSpinner?.unmount()
+    }
+    if (compileErrorIds.size > 0) {
+      log.info(
+        `\u2713 TypeScript: filtered ${compileErrorIds.size} mutant(s) with compile errors`,
+      )
+      runnableVariants = variants.filter((v) => !compileErrorIds.has(v.id))
+      // Pre-populate cache for compile-error mutants so they appear in summary
+      const compileErrorVariants = variants.filter((v) =>
+        compileErrorIds.has(v.id),
+      )
+      const compileErrorTasks = prepareTasks(
+        compileErrorVariants,
+        updatedCoverage.perTestCoverage,
+        directTestMap,
+      )
+      for (const task of compileErrorTasks) {
+        cache[task.key] = {
+          status: 'compile-error',
+          file: task.v.file,
+          line: task.v.line,
+          col: task.v.col,
+          mutator: task.v.name,
+        }
+      }
+    }
+  }
+
+  // 9. Generate schema files for each source file
+  const fallbackIds = new Set<string>()
+  const variantsByFile = new Map<string, Variant[]>()
+  for (const v of runnableVariants) {
+    const arr = variantsByFile.get(v.file) ?? []
+    arr.push(v)
+    variantsByFile.set(v.file, arr)
+  }
+  const results = await Promise.all(
+    [...variantsByFile.entries()].map(async ([file, fileVariants]) => {
+      try {
+        const originalCode = await fs.promises.readFile(file, 'utf8')
+        const schemaPath = getSchemaFilePath(file)
+        await fs.promises.mkdir(path.dirname(schemaPath), { recursive: true })
+        const { schemaCode, fallbackIds: fileFallbacks } = generateSchema(
+          originalCode,
+          fileVariants,
+        )
+        await fs.promises.writeFile(schemaPath, schemaCode, 'utf8')
+        return fileFallbacks
+      } catch {
+        return new Set(fileVariants.map((v) => v.id))
+      }
+    }),
+  )
+  for (const ids of results) {
+    for (const id of ids) fallbackIds.add(id)
+  }
+  log.debug(
+    `Schema: ${runnableVariants.length - fallbackIds.size} embedded, ${fallbackIds.size} fallback`,
+  )
+
+  // 10. Prepare tasks and execute via worker pool
+  let tasks = prepareTasks(
+    runnableVariants,
+    updatedCoverage.perTestCoverage,
+    directTestMap,
+  )
 
   await executePool({
     tasks,
@@ -216,5 +323,6 @@ export async function runOrchestrator(cliArgs: string[], cwd: string) {
     reportFormat: opts.reportFormat,
     cwd,
     shard: opts.shard,
+    fallbackIds,
   })
 }

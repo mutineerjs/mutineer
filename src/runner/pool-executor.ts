@@ -15,6 +15,7 @@ import {
 import { saveCacheAtomic } from './cache.js'
 import { cleanupMutineerDirs } from './cleanup.js'
 import { PoolSpinner } from '../utils/PoolSpinner.js'
+import { CompileErrors } from '../utils/CompileErrors.js'
 import { createLogger } from '../utils/logger.js'
 
 const log = createLogger('pool-executor')
@@ -29,6 +30,8 @@ export interface PoolExecutionOptions {
   reportFormat?: 'text' | 'json'
   cwd: string
   shard?: { index: number; total: number }
+  /** IDs of variants that must use the legacy redirect path (overlapping diff ranges). */
+  fallbackIds?: Set<string>
 }
 
 /**
@@ -49,7 +52,7 @@ export async function executePool(opts: PoolExecutionOptions): Promise<void> {
 
   // Ensure we only finish once
   let finished = false
-  const finishOnce = () => {
+  const finishOnce = async (interactive = true) => {
     if (finished) return
     finished = true
     const durationMs = Date.now() - mutationStartTime
@@ -66,7 +69,20 @@ export async function executePool(opts: PoolExecutionOptions): Promise<void> {
         `JSON report written to ${path.relative(process.cwd(), outPath)}`,
       )
     } else {
-      printSummary(summary, cache, durationMs)
+      const compileErrorEntries = Object.values(cache).filter(
+        (e) => e.status === 'compile-error',
+      )
+      const useInteractive =
+        interactive && process.stdout.isTTY && compileErrorEntries.length > 0
+      printSummary(summary, cache, durationMs, {
+        skipCompileErrors: useInteractive,
+      })
+      if (useInteractive) {
+        const { waitUntilExit } = render(
+          createElement(CompileErrors, { entries: compileErrorEntries, cwd }),
+        )
+        await waitUntilExit()
+      }
     }
     if (opts.minKillPercent !== undefined) {
       const killRateString = summary.killRate.toFixed(2)
@@ -120,6 +136,7 @@ export async function executePool(opts: PoolExecutionOptions): Promise<void> {
 
   async function processTask(task: MutantTask): Promise<void> {
     const { v, tests, key, directTests } = task
+    const { fallbackIds } = opts
 
     const cached = cache[key]
     if (cached) {
@@ -149,6 +166,7 @@ export async function executePool(opts: PoolExecutionOptions): Promise<void> {
         code: v.code,
         line: v.line,
         col: v.col,
+        isFallback: !fallbackIds || fallbackIds.has(v.id),
       },
       tests,
     )
@@ -208,7 +226,7 @@ export async function executePool(opts: PoolExecutionOptions): Promise<void> {
     if (signalCleanedUp) return
     signalCleanedUp = true
     log.info(`\nReceived ${signal}, cleaning up...`)
-    finishOnce()
+    await finishOnce(false)
     await adapter.shutdown()
     await cleanupMutineerDirs(cwd)
     process.exit(1)
@@ -224,7 +242,7 @@ export async function executePool(opts: PoolExecutionOptions): Promise<void> {
     process.removeAllListeners('SIGINT')
     process.removeAllListeners('SIGTERM')
     if (!signalCleanedUp) {
-      finishOnce()
+      await finishOnce()
       await adapter.shutdown()
       await cleanupMutineerDirs(cwd)
     }
