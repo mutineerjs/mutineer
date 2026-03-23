@@ -23,6 +23,7 @@ import type {
   MutantRunResult,
   MutantRunSummary,
 } from '../../types/mutant.js'
+import { getActiveIdFilePath } from '../shared/index.js'
 import { createLogger, DEBUG } from '../../utils/logger.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -86,6 +87,7 @@ class VitestWorker extends EventEmitter {
       ...process.env,
       MUTINEER_WORKER_ID: this.id,
       MUTINEER_CWD: this.cwd,
+      MUTINEER_ACTIVE_ID_FILE: getActiveIdFilePath(this.id, this.cwd),
       ...(this.vitestConfig
         ? { MUTINEER_VITEST_CONFIG: this.vitestConfig }
         : {}),
@@ -111,6 +113,10 @@ class VitestWorker extends EventEmitter {
         cwd: this.cwd,
         env,
         stdio: ['pipe', 'pipe', 'pipe'],
+        // Create own process group so killing this process also kills its
+        // children (Vitest inner forks). Without this, SIGKILL to worker.mjs
+        // orphans the Vitest fork workers.
+        detached: true,
       },
     )
 
@@ -276,8 +282,15 @@ class VitestWorker extends EventEmitter {
 
   kill(): void {
     if (this.process) {
+      const pid = this.process.pid
       try {
-        this.process.kill('SIGKILL')
+        if (pid !== undefined) {
+          // Kill the entire process group (negative PID) so Vitest inner fork
+          // workers die alongside worker.mjs instead of becoming orphans.
+          process.kill(-pid, 'SIGKILL')
+        } else {
+          this.process.kill('SIGKILL')
+        }
       } catch {
         // Ignore
       }
