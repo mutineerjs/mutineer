@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.0](https://github.com/mutineerjs/mutineer/compare/v0.9.0...v0.10.0) (2026-03-23)
+
+
+### Added
+
+* sort targets alphabetically, surface test names and move ts compile list to report ([#57](https://github.com/mutineerjs/mutineer/issues/57)) ([0568f1e](https://github.com/mutineerjs/mutineer/commit/0568f1ec151450f02abb6d5b2b69837c75559a72))
+
 ## [0.9.0](https://github.com/mutineerjs/mutineer/compare/v0.8.0...v0.9.0) (2026-03-23)
 
 
