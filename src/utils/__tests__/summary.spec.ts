@@ -163,6 +163,24 @@ describe('summary', () => {
     logSpy.mockRestore()
   })
 
+  it('handles printSummary with no cache argument when total > 0', () => {
+    const summary = {
+      total: 1,
+      killed: 1,
+      escaped: 0,
+      skipped: 0,
+      timeouts: 0,
+      compileErrors: 0,
+      evaluated: 1,
+      killRate: 100,
+    }
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+    // No cache passed: allEntries=[], maxPathLen=25 (|| 25), maxMutatorLen=10 (|| 10)
+    printSummary(summary)
+    expect(logSpy).toHaveBeenCalled()
+    logSpy.mockRestore()
+  })
+
   it('buildJsonReport includes passingTests when present', () => {
     const cache = {
       a: makeEntry({
@@ -272,6 +290,49 @@ describe('summary', () => {
 
     expect(s.total).toBe(1)
     expect(logSpy).toHaveBeenCalled()
+    logSpy.mockRestore()
+  })
+
+  it('counts compile-error status in compileErrors field', () => {
+    const cache = { a: makeEntry({ status: 'compile-error' }) }
+    const s = computeSummary(cache)
+    expect(s.compileErrors).toBe(1)
+    expect(s.killed).toBe(0)
+  })
+
+  it('categorizes compile-error entries without throwing in printSummary', () => {
+    const cache = {
+      a: makeEntry({ status: 'compile-error', file: '/tmp/a.ts' }),
+    }
+    const summary = computeSummary(cache)
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+    printSummary(summary, cache)
+    expect(summary.compileErrors).toBe(1)
+    logSpy.mockRestore()
+  })
+
+  it('formats duration in minutes when duration >= 60s', () => {
+    const cache = { a: makeEntry({ status: 'killed' }) }
+    const summary = computeSummary(cache)
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+    printSummary(summary, cache, 90000) // 90 seconds = 1m 30.0s
+    const lines = logSpy.mock.calls.map((c) => stripAnsi(c.join(' ')))
+    expect(lines.some((l) => l.includes('1m 30.0s'))).toBe(true)
+    logSpy.mockRestore()
+  })
+
+  it('prints +N more when escaped mutant has more than 2 covering tests', () => {
+    const cache = {
+      a: makeEntry({
+        status: 'escaped',
+        coveringTests: ['/t1.spec.ts', '/t2.spec.ts', '/t3.spec.ts'],
+      }),
+    }
+    const summary = computeSummary(cache)
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+    printSummary(summary, cache)
+    const lines = logSpy.mock.calls.map((c) => stripAnsi(c.join(' ')))
+    expect(lines.some((l) => l.includes('+1 more'))).toBe(true)
     logSpy.mockRestore()
   })
 })

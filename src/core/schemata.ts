@@ -99,19 +99,12 @@ function findSmallestEnclosingExpression(
   let best: { start: number; end: number } | null = null
 
   function walk(node: t.Node): void {
-    if (
-      !node ||
-      typeof node.start !== 'number' ||
-      typeof node.end !== 'number'
-    ) {
-      return
-    }
-    if (offset < node.start || offset >= node.end) return
+    if (offset < node.start! || offset >= node.end!) return
 
     if (t.isExpression(node)) {
-      const span = node.end - node.start
+      const span = node.end! - node.start!
       if (!best || span < best.end - best.start) {
-        best = { start: node.start, end: node.end }
+        best = { start: node.start!, end: node.end! }
       }
     }
 
@@ -131,11 +124,7 @@ function findSmallestEnclosingExpression(
       if (!child || typeof child !== 'object') continue
       if (Array.isArray(child)) {
         for (const item of child) {
-          if (
-            item &&
-            typeof item === 'object' &&
-            typeof (item as t.Node).start === 'number'
-          ) {
+          if (item && typeof (item as t.Node).start === 'number') {
             walk(item as t.Node)
           }
         }
@@ -225,11 +214,6 @@ export function generateSchema(
       // shorter by delta = mutEnd - origEnd. Adjust the slice end accordingly.
       const delta = mutEnd - origEnd
       replacement = variant.code.slice(siteStart, siteEnd + delta)
-      // Sanity: if replacement equals original span, the mutation had no effect
-      if (replacement === originalCode.slice(siteStart, siteEnd)) {
-        fallbackIds.add(variant.id)
-        continue
-      }
     }
 
     const key = `${siteStart}:${siteEnd}`

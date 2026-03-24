@@ -78,11 +78,17 @@ vi.mock('../../core/schemata.js', () => ({
 import { runOrchestrator, parseMutantTimeoutMs } from '../orchestrator.js'
 import { loadMutineerConfig } from '../config.js'
 import { createVitestAdapter, type VitestAdapter } from '../vitest/index.js'
+import { createJestAdapter } from '../jest/index.js'
 import { autoDiscoverTargetsAndTests } from '../discover.js'
 import { listChangedFiles } from '../changed.js'
 import { executePool } from '../pool-executor.js'
 import { prepareTasks, type MutantTask } from '../tasks.js'
-import { enumerateAllVariants } from '../variants.js'
+import { enumerateAllVariants, getTargetFile } from '../variants.js'
+import { resolveTypescriptEnabled, checkTypes } from '../ts-checker.js'
+import {
+  resolveCoverageConfig,
+  loadCoverageAfterBaseline,
+} from '../coverage-resolver.js'
 import type { Variant } from '../../types/mutant.js'
 import { generateSchema } from '../../core/schemata.js'
 import os from 'node:os'
@@ -650,5 +656,383 @@ describe('runOrchestrator schema generation', () => {
     expect(mockLogDebug).toHaveBeenCalledWith(
       expect.stringMatching(/Schema: 1 embedded, 0 fallback/),
     )
+  })
+})
+
+describe('runOrchestrator jest runner', () => {
+  const targetFile = '/cwd/src/foo.ts'
+  const testFile = '/cwd/src/__tests__/foo.spec.ts'
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    process.exitCode = undefined
+    vi.mocked(loadMutineerConfig).mockResolvedValue({})
+    vi.mocked(autoDiscoverTargetsAndTests).mockResolvedValue({
+      targets: [targetFile],
+      testMap: new Map([[targetFile, new Set([testFile])]]),
+      directTestMap: new Map(),
+    })
+    vi.mocked(createJestAdapter).mockReturnValue(
+      mockAdapter as unknown as ReturnType<typeof createJestAdapter>,
+    )
+    vi.mocked(mockAdapter.runBaseline).mockResolvedValue(true)
+  })
+
+  afterEach(() => {
+    process.exitCode = undefined
+  })
+
+  it('uses jest adapter when --runner jest is passed', async () => {
+    await runOrchestrator(['--runner', 'jest'], '/cwd')
+
+    expect(createJestAdapter).toHaveBeenCalled()
+    expect(createVitestAdapter).not.toHaveBeenCalled()
+  })
+})
+
+describe('runOrchestrator vitestProject', () => {
+  const targetFile = '/cwd/src/foo.ts'
+  const testFile = '/cwd/src/__tests__/foo.spec.ts'
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    process.exitCode = undefined
+    vi.mocked(createVitestAdapter).mockReturnValue(
+      mockAdapter as unknown as VitestAdapter,
+    )
+    vi.mocked(mockAdapter.runBaseline).mockResolvedValue(true)
+    vi.mocked(autoDiscoverTargetsAndTests).mockResolvedValue({
+      targets: [targetFile],
+      testMap: new Map([[targetFile, new Set([testFile])]]),
+      directTestMap: new Map(),
+    })
+  })
+
+  afterEach(() => {
+    process.exitCode = undefined
+  })
+
+  it('passes vitestProject from config to adapter', async () => {
+    vi.mocked(loadMutineerConfig).mockResolvedValue({
+      vitestProject: 'my-project',
+    })
+
+    await runOrchestrator([], '/cwd')
+
+    expect(createVitestAdapter).toHaveBeenCalledWith(
+      expect.objectContaining({ vitestProject: 'my-project' }),
+    )
+  })
+})
+
+describe('runOrchestrator --changed filter', () => {
+  afterEach(() => {
+    process.exitCode = undefined
+  })
+
+  it('skips target not in changedAbs and exits with no tests error', async () => {
+    vi.mocked(loadMutineerConfig).mockResolvedValue({})
+    const targetFile = '/cwd/src/foo.ts'
+    const unchangedFile = '/cwd/src/bar.ts'
+    vi.mocked(listChangedFiles).mockReturnValue([targetFile]) // only targetFile is changed
+    vi.mocked(autoDiscoverTargetsAndTests).mockResolvedValue({
+      targets: [unchangedFile], // bar.ts is not changed -> filtered out
+      testMap: new Map([
+        [unchangedFile, new Set(['/cwd/src/__tests__/bar.spec.ts'])],
+      ]),
+      directTestMap: new Map(),
+    })
+
+    await runOrchestrator(['--changed'], '/cwd')
+
+    // With no tests because bar.ts was filtered, should hit the no-tests error
+    expect(process.exitCode).toBe(1)
+  })
+})
+
+describe('runOrchestrator baseline failure', () => {
+  const targetFile = '/cwd/src/foo.ts'
+  const testFile = '/cwd/src/__tests__/foo.spec.ts'
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    process.exitCode = undefined
+    vi.mocked(createVitestAdapter).mockReturnValue(
+      mockAdapter as unknown as VitestAdapter,
+    )
+    vi.mocked(loadMutineerConfig).mockResolvedValue({})
+    vi.mocked(autoDiscoverTargetsAndTests).mockResolvedValue({
+      targets: [targetFile],
+      testMap: new Map([[targetFile, new Set([testFile])]]),
+      directTestMap: new Map(),
+    })
+  })
+
+  afterEach(() => {
+    process.exitCode = undefined
+  })
+
+  it('sets exitCode=1 and returns when baseline fails', async () => {
+    vi.mocked(mockAdapter.runBaseline).mockResolvedValue(false)
+
+    await runOrchestrator([], '/cwd')
+
+    expect(process.exitCode).toBe(1)
+    expect(enumerateAllVariants).not.toHaveBeenCalled()
+  })
+})
+
+describe('runOrchestrator TypeScript checking', () => {
+  let tmpDir: string
+  const testFile = '/cwd/src/__tests__/foo.spec.ts'
+
+  function makeVariant(id: string, file: string): Variant {
+    return {
+      id,
+      name: 'returnNull',
+      file,
+      code: 'return null',
+      line: 1,
+      col: 0,
+      tests: [testFile],
+    }
+  }
+
+  beforeEach(() => {
+    tmpDir = fssync.mkdtempSync(path.join(os.tmpdir(), 'mutineer-orch-ts-'))
+    vi.clearAllMocks()
+    process.exitCode = undefined
+    vi.mocked(createVitestAdapter).mockReturnValue(
+      mockAdapter as unknown as VitestAdapter,
+    )
+    vi.mocked(loadMutineerConfig).mockResolvedValue({})
+    vi.mocked(mockAdapter.runBaseline).mockResolvedValue(true)
+  })
+
+  afterEach(() => {
+    process.exitCode = undefined
+    fssync.rmSync(tmpDir, { recursive: true, force: true })
+  })
+
+  it('filters compile-error variants and populates cache when TS enabled', async () => {
+    const sourceFile = path.join(tmpDir, 'source.ts')
+    fssync.writeFileSync(sourceFile, 'const x = 1', 'utf8')
+
+    const goodVariant = makeVariant('source.ts#0', sourceFile)
+    const badVariant = makeVariant('source.ts#1', sourceFile)
+
+    vi.mocked(autoDiscoverTargetsAndTests).mockResolvedValue({
+      targets: [sourceFile],
+      testMap: new Map([[sourceFile, new Set([testFile])]]),
+      directTestMap: new Map(),
+    })
+    vi.mocked(enumerateAllVariants).mockResolvedValue([goodVariant, badVariant])
+    vi.mocked(resolveTypescriptEnabled).mockReturnValue(true)
+    vi.mocked(checkTypes).mockResolvedValue(new Set(['source.ts#1']))
+    vi.mocked(prepareTasks)
+      .mockReturnValueOnce([
+        { key: 'source.ts#1', v: badVariant, tests: [testFile] },
+      ]) // compile-error tasks
+      .mockReturnValueOnce([
+        { key: 'source.ts#0', v: goodVariant, tests: [testFile] },
+      ]) // runnable tasks
+
+    await runOrchestrator([], tmpDir)
+
+    // executePool should only receive the good variant
+    const poolCall = vi.mocked(executePool).mock.calls[0][0]
+    expect(poolCall.tasks.map((t) => t.key)).toEqual(['source.ts#0'])
+  })
+
+  it('logs filtered compile-error count when TS enabled', async () => {
+    const sourceFile = path.join(tmpDir, 'source.ts')
+    fssync.writeFileSync(sourceFile, 'const x = 1', 'utf8')
+
+    const badVariant = makeVariant('source.ts#0', sourceFile)
+
+    vi.mocked(autoDiscoverTargetsAndTests).mockResolvedValue({
+      targets: [sourceFile],
+      testMap: new Map([[sourceFile, new Set([testFile])]]),
+      directTestMap: new Map(),
+    })
+    vi.mocked(enumerateAllVariants).mockResolvedValue([badVariant])
+    vi.mocked(resolveTypescriptEnabled).mockReturnValue(true)
+    vi.mocked(checkTypes).mockResolvedValue(new Set(['source.ts#0']))
+    vi.mocked(prepareTasks).mockReturnValue([
+      { key: 'source.ts#0', v: badVariant, tests: [testFile] },
+    ])
+
+    const consoleSpy = vi.spyOn(console, 'log')
+    await runOrchestrator([], tmpDir)
+
+    expect(consoleSpy).toHaveBeenCalledWith(
+      expect.stringContaining(
+        'TypeScript: filtered 1 mutant(s) with compile errors',
+      ),
+    )
+  })
+
+  it('calls executePool with empty tasks when all variants are compile errors', async () => {
+    const sourceFile = path.join(tmpDir, 'source.ts')
+    fssync.writeFileSync(sourceFile, 'const x = 1', 'utf8')
+
+    const badVariant = makeVariant('source.ts#0', sourceFile)
+
+    vi.mocked(autoDiscoverTargetsAndTests).mockResolvedValue({
+      targets: [sourceFile],
+      testMap: new Map([[sourceFile, new Set([testFile])]]),
+      directTestMap: new Map(),
+    })
+    vi.mocked(enumerateAllVariants).mockResolvedValue([badVariant])
+    vi.mocked(resolveTypescriptEnabled).mockReturnValue(true)
+    vi.mocked(checkTypes).mockResolvedValue(new Set(['source.ts#0']))
+    // First call: compile-error cache population; second call: runnable variants (empty)
+    vi.mocked(prepareTasks)
+      .mockReturnValueOnce([
+        { key: 'source.ts#0', v: badVariant, tests: [testFile] },
+      ])
+      .mockReturnValueOnce([])
+
+    await runOrchestrator([], tmpDir)
+
+    // executePool is still called, but with empty tasks
+    const poolCall = vi.mocked(executePool).mock.calls[0][0]
+    expect(poolCall.tasks).toEqual([])
+  })
+
+  it('runs TS checking but skips filtering when no compile errors found', async () => {
+    const sourceFile = path.join(tmpDir, 'source.ts')
+    fssync.writeFileSync(sourceFile, 'const x = 1', 'utf8')
+
+    const goodVariant = makeVariant('source.ts#0', sourceFile)
+
+    vi.mocked(autoDiscoverTargetsAndTests).mockResolvedValue({
+      targets: [sourceFile],
+      testMap: new Map([[sourceFile, new Set([testFile])]]),
+      directTestMap: new Map(),
+    })
+    vi.mocked(enumerateAllVariants).mockResolvedValue([goodVariant])
+    vi.mocked(resolveTypescriptEnabled).mockReturnValue(true)
+    vi.mocked(checkTypes).mockResolvedValue(new Set()) // no compile errors
+    vi.mocked(prepareTasks).mockReturnValue([
+      { key: 'source.ts#0', v: goodVariant, tests: [testFile] },
+    ])
+
+    await runOrchestrator([], tmpDir)
+
+    // All variants are runnable; executePool receives the full task list
+    const poolCall = vi.mocked(executePool).mock.calls[0][0]
+    expect(poolCall.tasks.map((t) => t.key)).toEqual(['source.ts#0'])
+  })
+})
+
+describe('runOrchestrator misc branches', () => {
+  const targetFile = '/cwd/src/foo.ts'
+  const testFile = '/cwd/src/__tests__/foo.spec.ts'
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    process.exitCode = undefined
+    vi.mocked(createVitestAdapter).mockReturnValue(
+      mockAdapter as unknown as VitestAdapter,
+    )
+    vi.mocked(loadMutineerConfig).mockResolvedValue({})
+    vi.mocked(autoDiscoverTargetsAndTests).mockResolvedValue({
+      targets: [targetFile],
+      testMap: new Map([[targetFile, new Set([testFile])]]),
+      directTestMap: new Map(),
+    })
+    vi.mocked(mockAdapter.runBaseline).mockResolvedValue(true)
+    // Reset mocks that may carry over from other describe blocks
+    vi.mocked(resolveCoverageConfig).mockResolvedValue({
+      enableCoverageForBaseline: false,
+      wantsPerTestCoverage: false,
+      coverageData: null,
+    } as any)
+    vi.mocked(loadCoverageAfterBaseline).mockResolvedValue({
+      coverageData: null,
+      perTestCoverage: null,
+    } as any)
+    vi.mocked(resolveTypescriptEnabled).mockReturnValue(false)
+    vi.mocked(checkTypes).mockResolvedValue(new Set())
+    vi.mocked(enumerateAllVariants).mockResolvedValue([])
+    vi.mocked(prepareTasks).mockReturnValue([])
+    vi.mocked(getTargetFile).mockImplementation((t) =>
+      typeof t === 'string' ? t : (t as { file: string }).file,
+    )
+  })
+
+  afterEach(() => {
+    process.exitCode = undefined
+  })
+
+  it('logs "only covered lines" when --only-covered-lines is passed', async () => {
+    const consoleSpy = vi.spyOn(console, 'log')
+    await runOrchestrator(['--only-covered-lines'], '/cwd')
+
+    expect(consoleSpy).toHaveBeenCalledWith(
+      expect.stringContaining('only covered lines'),
+    )
+  })
+
+  it('uses autoDiscover=false to return empty targets when no cfg.targets set', async () => {
+    vi.mocked(loadMutineerConfig).mockResolvedValue({ autoDiscover: false })
+    vi.mocked(autoDiscoverTargetsAndTests).mockResolvedValue({
+      targets: [targetFile],
+      testMap: new Map(),
+      directTestMap: new Map(),
+    })
+
+    await runOrchestrator([], '/cwd')
+
+    // With autoDiscover=false and no cfg.targets, targets is [], no tests found, exit=1
+    expect(process.exitCode).toBe(1)
+  })
+
+  it('logs coverage collection message when enableCoverageForBaseline is true', async () => {
+    vi.mocked(resolveCoverageConfig).mockResolvedValue({
+      enableCoverageForBaseline: true,
+      wantsPerTestCoverage: false,
+      coverageData: null,
+    } as any)
+
+    const consoleSpy = vi.spyOn(console, 'log')
+    await runOrchestrator([], '/cwd')
+
+    expect(consoleSpy).toHaveBeenCalledWith(
+      expect.stringContaining('collecting coverage'),
+    )
+  })
+
+  it('logs "no mutants" with coverage note when coverageData is non-null', async () => {
+    vi.mocked(loadCoverageAfterBaseline).mockResolvedValue({
+      coverageData: new Map(), // non-null
+      perTestCoverage: null,
+    } as any)
+
+    const consoleSpy = vi.spyOn(console, 'log')
+    await runOrchestrator([], '/cwd')
+
+    expect(consoleSpy).toHaveBeenCalledWith(
+      expect.stringContaining('uncovered lines'),
+    )
+  })
+
+  it('collects test files for relative target path', async () => {
+    const relTarget = 'src/foo.ts'
+    vi.mocked(getTargetFile).mockImplementation((t) =>
+      typeof t === 'string' ? relTarget : (t as { file: string }).file,
+    )
+    vi.mocked(autoDiscoverTargetsAndTests).mockResolvedValue({
+      targets: [relTarget],
+      testMap: new Map([[targetFile, new Set([testFile])]]),
+      directTestMap: new Map(),
+    })
+
+    // Relative path gets joined with cwd — should match the testMap key
+    await runOrchestrator([], '/cwd')
+
+    // runBaseline should be called since test was found via relative path join
+    expect(mockAdapter.runBaseline).toHaveBeenCalled()
   })
 })

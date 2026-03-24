@@ -39,11 +39,6 @@ export function generateMutationVariants(
   const ctx = buildParseContext(code)
 
   for (const mutator of registry) {
-    // Early termination if limit reached
-    if (max !== undefined && variants.length >= max) {
-      break
-    }
-
     const mutations = mutator.applyWithContext
       ? mutator.applyWithContext(code, ctx)
       : mutator.apply(code)

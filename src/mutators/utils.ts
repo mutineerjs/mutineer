@@ -205,85 +205,79 @@ export function collectAllTargets(
   const assignmentTargets = new Map<string, OperatorTarget[]>()
 
   function handleBinaryOrLogical(n: t.BinaryExpression | t.LogicalExpression) {
-    const nodeStart = n.start ?? 0
-    const nodeEnd = n.end ?? 0
+    const nodeStart = n.start!
+    const nodeEnd = n.end!
     const opValue = n.operator
     const tok = tokens.find(
       (tk) =>
         tk.start >= nodeStart && tk.end <= nodeEnd && tk.value === opValue,
-    )
-    if (tok) {
-      const line = tok.loc.start.line
-      if (ignoreLines.has(line)) return
-      const visualCol = getVisualColumn(src, tok.start)
-      let arr = operatorTargets.get(opValue)
-      if (!arr) {
-        arr = []
-        operatorTargets.set(opValue, arr)
-      }
-      arr.push({
-        start: tok.start,
-        end: tok.end,
-        line,
-        col1: visualCol,
-        op: opValue,
-      })
+    )!
+    const line = tok.loc.start.line
+    if (ignoreLines.has(line)) return
+    const visualCol = getVisualColumn(src, tok.start)
+    let arr = operatorTargets.get(opValue)
+    if (!arr) {
+      arr = []
+      operatorTargets.set(opValue, arr)
     }
+    arr.push({
+      start: tok.start,
+      end: tok.end,
+      line,
+      col1: visualCol,
+      op: opValue,
+    })
   }
 
   function handleUpdate(n: t.UpdateExpression) {
-    const nodeStart = n.start ?? 0
-    const nodeEnd = n.end ?? 0
+    const nodeStart = n.start!
+    const nodeEnd = n.end!
     const opValue = n.operator
     const tok = tokens.find(
       (tk) =>
         tk.start >= nodeStart && tk.end <= nodeEnd && tk.value === opValue,
-    )
-    if (tok) {
-      const line = tok.loc.start.line
-      if (ignoreLines.has(line)) return
-      const visualCol = getVisualColumn(src, tok.start)
-      const mapKey = (n.prefix ? 'pre' : 'post') + opValue
-      let arr = updateTargets.get(mapKey)
-      if (!arr) {
-        arr = []
-        updateTargets.set(mapKey, arr)
-      }
-      arr.push({
-        start: tok.start,
-        end: tok.end,
-        line,
-        col1: visualCol,
-        op: opValue,
-      })
+    )!
+    const line = tok.loc.start.line
+    if (ignoreLines.has(line)) return
+    const visualCol = getVisualColumn(src, tok.start)
+    const mapKey = (n.prefix ? 'pre' : 'post') + opValue
+    let arr = updateTargets.get(mapKey)
+    if (!arr) {
+      arr = []
+      updateTargets.set(mapKey, arr)
     }
+    arr.push({
+      start: tok.start,
+      end: tok.end,
+      line,
+      col1: visualCol,
+      op: opValue,
+    })
   }
 
   function handleAssignment(n: t.AssignmentExpression) {
-    const nodeStart = n.start ?? 0
-    const nodeEnd = n.end ?? 0
+    const nodeStart = n.start!
+    const nodeEnd = n.end!
     const opValue = n.operator
     const tok = tokens.find(
       (tk) =>
         tk.start >= nodeStart && tk.end <= nodeEnd && tk.value === opValue,
-    )
-    if (tok) {
-      const line = tok.loc.start.line
-      if (ignoreLines.has(line)) return
-      const visualCol = getVisualColumn(src, tok.start)
-      let arr = assignmentTargets.get(opValue)
-      if (!arr) {
-        arr = []
-        assignmentTargets.set(opValue, arr)
-      }
-      arr.push({
-        start: tok.start,
-        end: tok.end,
-        line,
-        col1: visualCol,
-        op: opValue,
-      })
+    )!
+    const line = tok.loc.start.line
+    if (ignoreLines.has(line)) return
+    const visualCol = getVisualColumn(src, tok.start)
+    let arr = assignmentTargets.get(opValue)
+    if (!arr) {
+      arr = []
+      assignmentTargets.set(opValue, arr)
     }
+    arr.push({
+      start: tok.start,
+      end: tok.end,
+      line,
+      col1: visualCol,
+      op: opValue,
+    })
   }
 
   traverse(ast, {
@@ -302,13 +296,11 @@ export function collectAllTargets(
     ReturnStatement(p) {
       const node = p.node
       if (!node.argument) return
-      const line = node.loc?.start.line
-      if (line === undefined) return
+      const line = node.loc!.start.line
       if (ignoreLines.has(line)) return
-      const argStart = node.argument.start
-      const argEnd = node.argument.end
-      if (argStart == null || argEnd == null) return
-      const col = getVisualColumn(src, node.start ?? 0)
+      const argStart = node.argument.start!
+      const argEnd = node.argument.end!
+      const col = getVisualColumn(src, node.start!)
       returnStatements.push({
         line,
         col,
@@ -331,8 +323,8 @@ export function buildParseContext(src: string): ParseContext {
     tokens?: TokenLike[]
     comments?: t.Comment[]
   }
-  const tokens = ast.tokens ?? []
-  const ignoreLines = buildIgnoreLines(ast.comments ?? [])
+  const tokens = ast.tokens!
+  const ignoreLines = buildIgnoreLines(ast.comments!)
   const preCollected = collectAllTargets(src, ast, tokens, ignoreLines)
   return { ast, tokens, ignoreLines, preCollected }
 }
@@ -355,26 +347,23 @@ export function collectOperatorTargetsFromContext(
       const n = p.node
       if (n.operator !== opValue) return
 
-      const nodeStart = n.start ?? 0
-      const nodeEnd = n.end ?? 0
+      const nodeStart = n.start!
+      const nodeEnd = n.end!
       const tok = tokens.find(
         (tk) =>
           tk.start >= nodeStart && tk.end <= nodeEnd && tk.value === opValue,
-      )
+      )!
+      const line = tok.loc.start.line
+      if (ignoreLines.has(line)) return
 
-      if (tok) {
-        const line = tok.loc.start.line
-        if (ignoreLines.has(line)) return
-
-        const visualCol = getVisualColumn(src, tok.start)
-        out.push({
-          start: tok.start,
-          end: tok.end,
-          line,
-          col1: visualCol,
-          op: opValue,
-        })
-      }
+      const visualCol = getVisualColumn(src, tok.start)
+      out.push({
+        start: tok.start,
+        end: tok.end,
+        line,
+        col1: visualCol,
+        op: opValue,
+      })
     },
   })
 

@@ -254,6 +254,25 @@ describe('executePool', () => {
     ).rejects.toThrow()
   })
 
+  it('writes mutineer-report.json when reportFormat=json without shard', async () => {
+    const adapter = makeAdapter()
+    const cache: Record<string, MutantCacheEntry> = {}
+
+    await executePool({
+      tasks: [makeTask({ key: 'json-no-shard-key' })],
+      adapter,
+      cache,
+      concurrency: 1,
+      progressMode: 'list',
+      cwd: tmpDir,
+      reportFormat: 'json',
+    })
+
+    const reportFile = path.join(tmpDir, 'mutineer-report.json')
+    const content = JSON.parse(await fs.readFile(reportFile, 'utf8'))
+    expect(content.schemaVersion).toBe(1)
+  })
+
   it('writes shard-suffixed JSON report when shard and reportFormat=json are set', async () => {
     const adapter = makeAdapter()
     const cache: Record<string, MutantCacheEntry> = {}
@@ -612,6 +631,77 @@ describe('executePool', () => {
     )
     expect(cacheStringifyCalls.length).toBe(1)
     stringifySpy.mockRestore()
+  })
+
+  it('uses bar mode for Progress when progressMode is bar', async () => {
+    const adapter = makeAdapter()
+    const cache: Record<string, MutantCacheEntry> = {}
+
+    // Should not throw, and bar mode writes to stderr (no isTTY in tests so uses console.log)
+    await executePool({
+      tasks: [makeTask({ key: 'bar-mode-key' })],
+      adapter,
+      cache,
+      concurrency: 1,
+      progressMode: 'bar',
+      cwd: tmpDir,
+    })
+
+    expect(cache['bar-mode-key'].status).toBe('killed')
+  })
+
+  it('stores passingTests when result contains passingTests', async () => {
+    const tmpFile = path.join(tmpDir, 'passing.ts')
+    await fs.writeFile(tmpFile, 'const x = a + b\n')
+
+    const adapter = makeAdapter({
+      runMutant: vi.fn().mockResolvedValue({
+        status: 'escaped',
+        durationMs: 1,
+        passingTests: ['/tests/foo.spec.ts'],
+      }),
+    })
+    const cache: Record<string, MutantCacheEntry> = {}
+    const task = makeTask({
+      key: 'passing-key',
+      v: {
+        id: 'passing.ts#0',
+        name: 'flipArith',
+        file: tmpFile,
+        code: 'const x = a - b\n',
+        line: 1,
+        col: 10,
+        tests: ['/tests/foo.spec.ts'],
+      },
+    })
+
+    await executePool({
+      tasks: [task],
+      adapter,
+      cache,
+      concurrency: 1,
+      progressMode: 'list',
+      cwd: tmpDir,
+    })
+
+    expect(cache['passing-key'].passingTests).toEqual(['/tests/foo.spec.ts'])
+  })
+
+  it('sets exitCode and logs no-mutants note when minKillPercent is set but no mutants evaluated', async () => {
+    const adapter = makeAdapter()
+    const cache: Record<string, MutantCacheEntry> = {}
+
+    await executePool({
+      tasks: [],
+      adapter,
+      cache,
+      concurrency: 1,
+      progressMode: 'list',
+      minKillPercent: 80,
+      cwd: tmpDir,
+    })
+
+    expect(process.exitCode).toBe(1)
   })
 
   it('handles adapter errors gracefully and still shuts down', async () => {

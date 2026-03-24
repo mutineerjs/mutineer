@@ -40,11 +40,6 @@ export async function mutateVueSfcScriptSetup(
   const ctx = buildParseContext(originalBlock)
 
   for (const mutator of registry) {
-    // Early termination if limit reached
-    if (max !== undefined && variants.length >= max) {
-      break
-    }
-
     const blockMutations = mutator.applyWithContext
       ? mutator.applyWithContext(originalBlock, ctx)
       : mutator.apply(originalBlock)

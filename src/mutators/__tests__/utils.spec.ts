@@ -6,12 +6,34 @@ import {
   buildIgnoreLines,
   buildParseContext,
   parseSource,
+  getVisualColumn,
 } from '../utils.js'
 import type { Comment } from '@babel/types'
 
 // ---------------------------------------------------------------------------
 // buildIgnoreLines
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// getVisualColumn
+// ---------------------------------------------------------------------------
+
+describe('getVisualColumn', () => {
+  it('returns 1 for offset at start of line', () => {
+    expect(getVisualColumn('abc', 0)).toBe(1)
+  })
+
+  it('advances to next tab stop for a tab character', () => {
+    // '\t' at column 0 (visualCol=1) advances to next stop: (floor(0/4)+1)*4+1 = 5
+    expect(getVisualColumn('\tx', 1)).toBe(5)
+  })
+
+  it('handles tab mid-line correctly', () => {
+    // 'ab\tc': charOffset=3 ('c'), linePrefix='ab\t'
+    // 'a' → visualCol=2, 'b' → 3, '\t' → nextStop=(floor(2/4)+1)*4+1=5 → visualCol=5
+    expect(getVisualColumn('ab\tc', 3)).toBe(5)
+  })
+})
 
 describe('buildIgnoreLines', () => {
   function comment(
@@ -67,6 +89,20 @@ describe('buildIgnoreLines', () => {
     const lines = buildIgnoreLines([comment('just a normal comment', 1)])
     expect(lines.size).toBe(0)
   })
+
+  it('skips comment with empty or whitespace-only text', () => {
+    const c: Comment = {
+      type: 'CommentLine',
+      value: '   ',
+      start: 0,
+      end: 0,
+      loc: {
+        start: { line: 1, column: 0, index: 0 },
+        end: { line: 1, column: 0, index: 0 },
+      },
+    } as Comment
+    expect(buildIgnoreLines([c]).size).toBe(0)
+  })
 })
 
 // ---------------------------------------------------------------------------
@@ -85,6 +121,11 @@ describe('parseSource', () => {
   it('returns a File node', () => {
     const ast = parseSource(`const x = 1`)
     expect(ast.type).toBe('File')
+  })
+
+  it('falls back to Flow parser for Flow-specific nullable type syntax', () => {
+    // ?string is Flow syntax; Babel TS parser throws, falls back to Flow plugin
+    expect(() => parseSource('const x: ?string = null')).not.toThrow()
   })
 })
 
@@ -176,6 +217,41 @@ describe('collectAllTargets', () => {
     const result = collectAllTargets(src, ctx.ast, ctx.tokens, ctx.ignoreLines)
     const fromCtx = collectOperatorTargetsFromContext(src, ctx, '&&')
     expect(result.operatorTargets.get('&&')).toEqual(fromCtx)
+  })
+
+  it('collects update expression targets', () => {
+    const src = `i++`
+    const ctx = buildParseContext(src)
+    const result = collectAllTargets(src, ctx.ast, ctx.tokens, ctx.ignoreLines)
+    expect(result.updateTargets.size).toBeGreaterThan(0)
+  })
+
+  it('skips update expressions on ignored lines', () => {
+    const src = `// mutineer-disable-next-line\ni++`
+    const ctx = buildParseContext(src)
+    const result = collectAllTargets(src, ctx.ast, ctx.tokens, ctx.ignoreLines)
+    expect(result.updateTargets.size).toBe(0)
+  })
+
+  it('collects assignment expression targets', () => {
+    const src = `i += 1`
+    const ctx = buildParseContext(src)
+    const result = collectAllTargets(src, ctx.ast, ctx.tokens, ctx.ignoreLines)
+    expect(result.assignmentTargets.size).toBeGreaterThan(0)
+  })
+
+  it('skips assignment expressions on ignored lines', () => {
+    const src = `// mutineer-disable-next-line\ni += 1`
+    const ctx = buildParseContext(src)
+    const result = collectAllTargets(src, ctx.ast, ctx.tokens, ctx.ignoreLines)
+    expect(result.assignmentTargets.size).toBe(0)
+  })
+
+  it('groups multiple assignment expressions of same operator together', () => {
+    const src = `i += 1; j += 2`
+    const ctx = buildParseContext(src)
+    const result = collectAllTargets(src, ctx.ast, ctx.tokens, ctx.ignoreLines)
+    expect(result.assignmentTargets.get('+=')?.length).toBe(2)
   })
 })
 

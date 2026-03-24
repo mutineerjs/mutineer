@@ -387,6 +387,32 @@ describe('VitestWorkerRuntime', () => {
     }
   })
 
+  it('logs error and rethrows when vitest.init() throws', async () => {
+    const { createVitest } = await import('vitest/node')
+    const initError = new Error('init failed')
+    vi.mocked(createVitest).mockResolvedValueOnce({
+      init: vi.fn().mockRejectedValue(initError),
+      close: closeFn,
+      runTestSpecifications: runSpecsFn,
+      invalidateFile: invalidateFn,
+      getProjectByName: getProjectByNameFn,
+    } as any)
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const tmp = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'mutineer-worker-initerr-'),
+    )
+    tmpFiles.push(tmp)
+    const runtime = createVitestWorkerRuntime({
+      workerId: 'w-initerr',
+      cwd: tmp,
+    })
+    await expect(runtime.init()).rejects.toThrow('init failed')
+    expect(spy).toHaveBeenCalledWith(
+      expect.stringContaining('Failed to initialise Vitest'),
+    )
+    spy.mockRestore()
+  })
+
   it('clears state.filesMap before each run to prevent memory accumulation', async () => {
     const { createVitest } = await import('vitest/node')
     const clearFn = vi.fn()

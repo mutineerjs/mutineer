@@ -348,4 +348,277 @@ describe('isCoverageRequestedInArgs', () => {
     expect(isCoverageRequestedInArgs(['--coverage.enabled=false'])).toBe(false)
     expect(isCoverageRequestedInArgs(['--no-coverage'])).toBe(false)
   })
+
+  it('handles --coverage.enabled with space-separated value', () => {
+    expect(isCoverageRequestedInArgs(['--coverage.enabled', 'false'])).toBe(
+      false,
+    )
+    expect(isCoverageRequestedInArgs(['--coverage.enabled', 'true'])).toBe(true)
+    expect(isCoverageRequestedInArgs(['--coverage.enabled', '0'])).toBe(false)
+    expect(isCoverageRequestedInArgs(['--coverage.enabled', 'off'])).toBe(false)
+  })
+
+  it('handles --coverage= form', () => {
+    expect(isCoverageRequestedInArgs(['--coverage=true'])).toBe(true)
+    expect(isCoverageRequestedInArgs(['--coverage=false'])).toBe(false)
+    expect(isCoverageRequestedInArgs(['--coverage=0'])).toBe(false)
+  })
+
+  it('handles --coverage.something form (other coverage flags)', () => {
+    expect(isCoverageRequestedInArgs(['--coverage.reporter=json'])).toBe(true)
+    expect(isCoverageRequestedInArgs(['--coverage.all=true'])).toBe(true)
+  })
+})
+
+describe('Vitest adapter additional coverage', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('strips --min-kill-percent= args from vitest args', async () => {
+    const adapter = makeAdapter({ cliArgs: ['--min-kill-percent=80'] })
+    spawnMock.mockImplementationOnce(() => ({
+      on: (evt: string, cb: (...a: any[]) => void) => {
+        if (evt === 'exit') cb(0)
+      },
+    }))
+    await adapter.runBaseline(['test-a'], {
+      collectCoverage: false,
+      perTestCoverage: false,
+    })
+    const args = spawnMock.mock.calls[0][1] as string[]
+    expect(args.join(' ')).not.toContain('--min-kill-percent')
+  })
+
+  it('strips --config= args from vitest args', async () => {
+    const adapter = makeAdapter({ cliArgs: ['--config=./custom.vite.ts'] })
+    spawnMock.mockImplementationOnce(() => ({
+      on: (evt: string, cb: (...a: any[]) => void) => {
+        if (evt === 'exit') cb(0)
+      },
+    }))
+    await adapter.runBaseline(['test-a'], {
+      collectCoverage: false,
+      perTestCoverage: false,
+    })
+    const args = spawnMock.mock.calls[0][1] as string[]
+    expect(args.join(' ')).not.toContain('--config=./custom.vite.ts')
+  })
+
+  it('passes through non-mutineer args unchanged', async () => {
+    const adapter = makeAdapter({ cliArgs: ['--reporter=verbose'] })
+    spawnMock.mockImplementationOnce(() => ({
+      on: (evt: string, cb: (...a: any[]) => void) => {
+        if (evt === 'exit') cb(0)
+      },
+    }))
+    await adapter.runBaseline(['test-a'], {
+      collectCoverage: false,
+      perTestCoverage: false,
+    })
+    const args = spawnMock.mock.calls[0][1] as string[]
+    expect(args).toContain('--reporter=verbose')
+  })
+
+  it('handles spawn error event in runBaseline', async () => {
+    const adapter = makeAdapter({ cliArgs: [] })
+    spawnMock.mockImplementationOnce(() => ({
+      stdout: { on: () => {} },
+      stderr: { on: () => {} },
+      on: (evt: string, cb: (err: Error) => void) => {
+        if (evt === 'error') cb(new Error('spawn failed'))
+      },
+    }))
+    const result = await adapter.runBaseline(['test-a'], {
+      collectCoverage: false,
+      perTestCoverage: false,
+    })
+    expect(result).toBe(false)
+  })
+
+  it('throws when runMutant called before init', async () => {
+    const adapter = makeAdapter()
+    await expect(
+      adapter.runMutant(
+        { id: '1', name: 'm', file: 'f', code: 'c', line: 1, col: 1 },
+        ['t'],
+      ),
+    ).rejects.toThrow('VitestAdapter not initialised')
+  })
+
+  it('shuts down pool on shutdown()', async () => {
+    const adapter = makeAdapter()
+    await adapter.init()
+    await adapter.shutdown()
+    expect(poolInstance?.shutdown).toHaveBeenCalledTimes(1)
+  })
+
+  it('does nothing on shutdown() when pool is null', async () => {
+    const adapter = makeAdapter()
+    await expect(adapter.shutdown()).resolves.toBeUndefined()
+  })
+
+  it('detectCoverageConfig returns false defaults when no vitestConfig', async () => {
+    const adapter = makeAdapter({ config: {} as any })
+    const result = await adapter.detectCoverageConfig()
+    expect(result).toEqual({ perTestEnabled: false, coverageEnabled: false })
+  })
+
+  it('detectCoverageConfig returns false defaults when config file missing', async () => {
+    const adapter = makeAdapter({
+      config: { vitestConfig: '/nonexistent/vitest.config.ts' } as any,
+    })
+    const result = await adapter.detectCoverageConfig()
+    expect(result).toEqual({ perTestEnabled: false, coverageEnabled: false })
+  })
+
+  it('does not prepend "run" if already present in args', async () => {
+    const adapter = makeAdapter({ cliArgs: ['run'] })
+    spawnMock.mockImplementationOnce(() => ({
+      on: (evt: string, cb: (...a: any[]) => void) => {
+        if (evt === 'exit') cb(0)
+      },
+    }))
+    await adapter.runBaseline(['test-a'], {
+      collectCoverage: false,
+      perTestCoverage: false,
+    })
+    const args = spawnMock.mock.calls[0][1] as string[]
+    const runCount = args.filter((a) => a === 'run').length
+    expect(runCount).toBe(1)
+  })
+
+  it('does not add --watch=false if --watch flag already in args', async () => {
+    const adapter = makeAdapter({ cliArgs: ['--watch=false'] })
+    spawnMock.mockImplementationOnce(() => ({
+      on: (evt: string, cb: (...a: any[]) => void) => {
+        if (evt === 'exit') cb(0)
+      },
+    }))
+    await adapter.runBaseline(['test-a'], {
+      collectCoverage: false,
+      perTestCoverage: false,
+    })
+    const args = spawnMock.mock.calls[0][1] as string[]
+    const watchCount = args.filter((a) => a.startsWith('--watch')).length
+    expect(watchCount).toBe(1)
+  })
+
+  it('does not add --passWithNoTests if already in args', async () => {
+    const adapter = makeAdapter({ cliArgs: ['--passWithNoTests'] })
+    spawnMock.mockImplementationOnce(() => ({
+      on: (evt: string, cb: (...a: any[]) => void) => {
+        if (evt === 'exit') cb(0)
+      },
+    }))
+    await adapter.runBaseline(['test-a'], {
+      collectCoverage: false,
+      perTestCoverage: false,
+    })
+    const args = spawnMock.mock.calls[0][1] as string[]
+    const count = args.filter((a) => a === '--passWithNoTests').length
+    expect(count).toBe(1)
+  })
+
+  it('does not add coverage flags if --coverage already in args during baseline-with-coverage', async () => {
+    const adapter = makeAdapter({
+      cliArgs: ['--coverage.reporter=html', '--coverage.perTest=true'],
+    })
+    spawnMock.mockImplementationOnce(() => ({
+      on: (evt: string, cb: (...a: any[]) => void) => {
+        if (evt === 'exit') cb(0)
+      },
+    }))
+    await adapter.runBaseline(['test-a'], {
+      collectCoverage: true,
+      perTestCoverage: true,
+    })
+    const args = spawnMock.mock.calls[0][1] as string[]
+    // --coverage.enabled=true should NOT be added since --coverage.reporter is already present
+    expect(args).not.toContain('--coverage.enabled=true')
+    // --coverage.perTest=true should NOT be added again
+    const perTestCount = args.filter((a) =>
+      a.startsWith('--coverage.perTest='),
+    ).length
+    expect(perTestCount).toBe(1)
+  })
+
+  it('does not override CI env var when already set', async () => {
+    const originalCI = process.env.CI
+    process.env.CI = 'existing-ci-value'
+    try {
+      const adapter = makeAdapter({ cliArgs: [] })
+      let capturedEnv: NodeJS.ProcessEnv | undefined
+      spawnMock.mockImplementationOnce((_: string, __: string[], opts: any) => {
+        capturedEnv = opts.env
+        return {
+          on: (evt: string, cb: (...a: any[]) => void) => {
+            if (evt === 'exit') cb(0)
+          },
+        }
+      })
+      await adapter.runBaseline(['test-a'], {
+        collectCoverage: false,
+        perTestCoverage: false,
+      })
+      expect(capturedEnv?.CI).toBe('existing-ci-value')
+    } finally {
+      if (originalCI === undefined) delete process.env.CI
+      else process.env.CI = originalCI
+    }
+  })
+
+  it('runBaseline with non-zero exit and no chunks does not write output', async () => {
+    const adapter = makeAdapter({ cliArgs: [] })
+    const stdoutWrite = vi.spyOn(process.stdout, 'write').mockReturnValue(true)
+    const stderrWrite = vi.spyOn(process.stderr, 'write').mockReturnValue(true)
+    spawnMock.mockImplementationOnce(() => ({
+      stdout: { on: () => {} },
+      stderr: { on: () => {} },
+      on: (evt: string, cb: (...a: any[]) => void) => {
+        if (evt === 'exit') cb(1)
+      },
+    }))
+    const ok = await adapter.runBaseline(['test-a'], {
+      collectCoverage: false,
+      perTestCoverage: false,
+    })
+    expect(ok).toBe(false)
+    expect(stdoutWrite).not.toHaveBeenCalled()
+    expect(stderrWrite).not.toHaveBeenCalled()
+    stdoutWrite.mockRestore()
+    stderrWrite.mockRestore()
+  })
+
+  it('returns error status on pool throw with non-Error', async () => {
+    const adapter = makeAdapter()
+    await adapter.init()
+    poolInstance!.run.mockRejectedValueOnce('string error')
+    const res = await adapter.runMutant(
+      { id: '1', name: 'm', file: 'f', code: 'c', line: 1, col: 1 },
+      ['t'],
+    )
+    expect(res).toEqual({
+      status: 'error',
+      durationMs: 0,
+      error: 'string error',
+    })
+  })
+
+  it('detectCoverageConfig returns false when coverage is disabled in config', async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'mutineer-vitest-'))
+    const cfgPath = path.join(tmp, 'vitest.config.ts')
+    // content with "coverage: false" matches the exclusion regex
+    await fs.writeFile(cfgPath, '// coverage: false')
+    try {
+      const adapter = makeAdapter({
+        cwd: tmp,
+        config: { vitestConfig: cfgPath } as any,
+      })
+      const result = await adapter.detectCoverageConfig()
+      expect(result.coverageEnabled).toBe(false)
+    } finally {
+      await fs.rm(tmp, { recursive: true, force: true })
+    }
+  })
 })

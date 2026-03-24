@@ -61,9 +61,17 @@ describe('logger', () => {
     const log = createLogger('custom-tag')
     log.debug('test')
     if (DEBUG) {
-      expect(spy).toHaveBeenCalledWith(
-        expect.stringContaining('[custom-tag]'),
-      )
+      expect(spy).toHaveBeenCalledWith(expect.stringContaining('[custom-tag]'))
     }
+  })
+
+  it('debug calls console.error when MUTINEER_DEBUG=1', async () => {
+    process.env.MUTINEER_DEBUG = '1'
+    vi.resetModules()
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const { createLogger } = await import('../logger.js')
+    const log = createLogger('dbg-tag')
+    log.debug('debug msg')
+    expect(spy).toHaveBeenCalledWith('[dbg-tag] debug msg')
   })
 })

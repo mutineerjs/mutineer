@@ -317,6 +317,27 @@ describe('listChangedFiles', () => {
     expect(result).toContain('/repo/src/foo.ts')
   })
 
+  it('handles readFileSync throwing during dep resolution', () => {
+    spawnSyncMock.mockImplementation((_cmd: string, args: string[]) => {
+      if (args.includes('--show-toplevel')) {
+        return { status: 0, stdout: '/repo\n' }
+      }
+      if (args.includes('main...HEAD')) {
+        return { status: 0, stdout: 'src/foo.ts\0' }
+      }
+      return { status: 0, stdout: '' }
+    })
+
+    // existsSync always returns true so we get past the existsSync check in resolveLocalDeps
+    existsSyncMock.mockReturnValue(true)
+    readFileSyncMock.mockImplementation(() => {
+      throw new Error('ENOENT')
+    })
+
+    const result = listChangedFiles('/repo', { includeDeps: true })
+    expect(result).toContain('/repo/src/foo.ts')
+  })
+
   it('respects maxDepth option', () => {
     spawnSyncMock.mockImplementation((_cmd: string, args: string[]) => {
       if (args.includes('--show-toplevel')) {
@@ -336,6 +357,72 @@ describe('listChangedFiles', () => {
     })
     // maxDepth=0 means no recursion into deps
     expect(result).toContain('/repo/src/foo.ts')
+  })
+
+  it('logs warning when no git repo found and quiet is not set', () => {
+    spawnSyncMock.mockReturnValue({ status: 1, stdout: '' })
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const result = listChangedFiles('/not-a-repo')
+    expect(result).toEqual([])
+    expect(warnSpy).toHaveBeenCalled()
+    warnSpy.mockRestore()
+  })
+
+  it('handles circular dependencies without infinite recursion', () => {
+    spawnSyncMock.mockImplementation((_cmd: string, args: string[]) => {
+      if (args.includes('--show-toplevel'))
+        return { status: 0, stdout: '/repo\n' }
+      if (args.includes('main...HEAD'))
+        return { status: 0, stdout: 'src/a.ts\0' }
+      return { status: 0, stdout: '' }
+    })
+    readFileSyncMock.mockImplementation((p: string) => {
+      if (p === '/repo/src/a.ts') return 'import { b } from "./b"'
+      if (p === '/repo/src/b.ts') return 'import { a } from "./a"'
+      return ''
+    })
+    existsSyncMock.mockImplementation((p: string) =>
+      ['/repo/src/a.ts', '/repo/src/b.ts'].includes(p),
+    )
+
+    const result = listChangedFiles('/repo', { includeDeps: true, maxDepth: 3 })
+    expect(result).toContain('/repo/src/a.ts')
+    expect(result).toContain('/repo/src/b.ts')
+  })
+
+  it('skips test file dependencies', () => {
+    spawnSyncMock.mockImplementation((_cmd: string, args: string[]) => {
+      if (args.includes('--show-toplevel'))
+        return { status: 0, stdout: '/repo\n' }
+      if (args.includes('main...HEAD'))
+        return { status: 0, stdout: 'src/a.ts\0' }
+      return { status: 0, stdout: '' }
+    })
+    readFileSyncMock.mockReturnValue('import { x } from "./a.spec"')
+    existsSyncMock.mockImplementation((p: string) =>
+      ['/repo/src/a.ts', '/repo/src/a.spec.ts'].includes(p),
+    )
+
+    const result = listChangedFiles('/repo', { includeDeps: true })
+    expect(result).not.toContain('/repo/src/a.spec.ts')
+  })
+
+  it('handles absolute paths returned by git', () => {
+    // The code strips one leading slash via replace(/^\.?\//,'').
+    // A double-slash path like '//repo/src/abs.ts' still resolves as absolute after that strip.
+    spawnSyncMock.mockImplementation((_cmd: string, args: string[]) => {
+      if (args.includes('--show-toplevel')) {
+        return { status: 0, stdout: '/repo\n' }
+      }
+      if (args.includes('main...HEAD')) {
+        return { status: 0, stdout: '//repo/src/abs.ts\0' }
+      }
+      return { status: 0, stdout: '' }
+    })
+    existsSyncMock.mockImplementation((p: string) => p === '/repo/src/abs.ts')
+
+    const result = listChangedFiles('/repo')
+    expect(result).toContain('/repo/src/abs.ts')
   })
 
   it('only processes source files for dependency resolution', () => {

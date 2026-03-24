@@ -143,6 +143,49 @@ describe('Progress', () => {
     }
   })
 
+  it('defaults to bar mode when no opts provided', () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const progress = new Progress(2)
+    progress.start()
+    // Non-TTY path: logs via console
+    expect(logSpy).toHaveBeenCalledWith(
+      expect.stringContaining('running 2 mutants'),
+    )
+    progress.finish()
+    logSpy.mockRestore()
+  })
+
+  it('uses 80 column fallback when stream.columns is undefined', () => {
+    const writeSpy = vi.fn()
+    const fakeStream = {
+      isTTY: true,
+      write: writeSpy,
+      columns: undefined,
+    }
+
+    const origStderr = process.stderr
+    Object.defineProperty(process, 'stderr', {
+      value: fakeStream,
+      writable: true,
+      configurable: true,
+    })
+
+    try {
+      vi.spyOn(console, 'log').mockImplementation(() => {})
+      const progress = new Progress(3, { mode: 'bar' })
+      progress.start()
+      // Should not throw; bar rendered with 80 column fallback
+      expect(writeSpy).toHaveBeenCalled()
+      progress.finish()
+    } finally {
+      Object.defineProperty(process, 'stderr', {
+        value: origStderr,
+        writable: true,
+        configurable: true,
+      })
+    }
+  })
+
   it('handles zero total in bar mode', () => {
     const writeSpy = vi.fn()
     const fakeStream = {

@@ -1,6 +1,15 @@
 import { describe, it, expect, vi } from 'vitest'
 import { mutateVueSfcScriptSetup } from '../sfc.js'
 
+// Allow individual tests to override getFilteredRegistry
+vi.mock('../variant-utils.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../variant-utils.js')>()
+  return {
+    ...actual,
+    getFilteredRegistry: vi.fn(actual.getFilteredRegistry),
+  }
+})
+
 // Mock @vue/compiler-sfc
 vi.mock('@vue/compiler-sfc', () => ({
   parse: (code: string, _opts?: { filename?: string }) => {
@@ -91,14 +100,45 @@ describe('mutateVueSfcScriptSetup', () => {
     }
   })
 
+  it('uses apply() fallback when mutator has no applyWithContext', async () => {
+    const { getFilteredRegistry } = await import('../variant-utils.js')
+    const applyFn = vi.fn(() => [{ code: 'FALLBACK', line: 1, col: 0 }])
+    vi.mocked(getFilteredRegistry).mockReturnValueOnce([
+      { name: 'noCtx', description: 'noCtx', apply: applyFn },
+    ] as unknown as ReturnType<typeof getFilteredRegistry>)
+
+    const code = '<script setup>\nconst x = 1\n</script>'
+    const result = await mutateVueSfcScriptSetup('test.vue', code)
+    expect(applyFn).toHaveBeenCalled()
+    expect(result.length).toBe(1)
+  })
+
+  it('deduplicates when two mutators produce the same full SFC output', async () => {
+    const { getFilteredRegistry } = await import('../variant-utils.js')
+    vi.mocked(getFilteredRegistry).mockReturnValueOnce([
+      {
+        name: 'A',
+        description: 'A',
+        apply: () => [{ code: 'SAME_OUTPUT', line: 1, col: 0 }],
+      },
+      {
+        name: 'B',
+        description: 'B',
+        apply: () => [{ code: 'SAME_OUTPUT', line: 1, col: 0 }],
+      },
+    ] as unknown as ReturnType<typeof getFilteredRegistry>)
+
+    const code = '<script setup>\nconst x = 1\n</script>'
+    const result = await mutateVueSfcScriptSetup('test.vue', code)
+    // Both mutators produce the same output; only one variant should exist
+    expect(result.length).toBe(1)
+  })
+
   it('filters mutators with exclude', async () => {
     const code = '<script setup>\nconst x = a && b\n</script>'
-    const result = await mutateVueSfcScriptSetup(
-      'test.vue',
-      code,
-      undefined,
-      ['andToOr'],
-    )
+    const result = await mutateVueSfcScriptSetup('test.vue', code, undefined, [
+      'andToOr',
+    ])
     for (const v of result) {
       expect(v.name).not.toBe('andToOr')
     }
