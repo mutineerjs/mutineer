@@ -11,6 +11,18 @@ import { collectOperatorTargets, buildParseContext } from './utils.js'
 import type { ParseContext } from './utils.js'
 import type { OperatorTarget } from './types.js'
 
+function targetsToOutputs(
+  src: string,
+  targets: OperatorTarget[],
+  toOp: string,
+): readonly MutationOutput[] {
+  return targets.map((target) => ({
+    line: target.line,
+    col: target.col1,
+    code: src.slice(0, target.start) + toOp + src.slice(target.end),
+  }))
+}
+
 /**
  * Factory to build an operator mutator using AST traversal and token analysis.
  *
@@ -25,22 +37,11 @@ function makeOperatorMutator(
   fromOp: string,
   toOp: string,
 ): ASTMutator {
-  function targetsToOutputs(
-    src: string,
-    targets: ReturnType<typeof collectOperatorTargets>,
-  ): readonly MutationOutput[] {
-    return targets.map((target) => ({
-      line: target.line,
-      col: target.col1,
-      code: src.slice(0, target.start) + toOp + src.slice(target.end),
-    }))
-  }
-
   return {
     name,
     description,
     apply(src: string): readonly MutationOutput[] {
-      return targetsToOutputs(src, collectOperatorTargets(src, fromOp))
+      return targetsToOutputs(src, collectOperatorTargets(src, fromOp), toOp)
     },
     applyWithContext(
       src: string,
@@ -49,6 +50,7 @@ function makeOperatorMutator(
       return targetsToOutputs(
         src,
         ctx.preCollected.operatorTargets.get(fromOp) ?? [],
+        toOp,
       )
     },
   }
@@ -64,17 +66,6 @@ function makeUpdateMutator(
   mapKey: string,
   toOp: string,
 ): ASTMutator {
-  function targetsToOutputs(
-    src: string,
-    targets: OperatorTarget[],
-  ): readonly MutationOutput[] {
-    return targets.map((target) => ({
-      line: target.line,
-      col: target.col1,
-      code: src.slice(0, target.start) + toOp + src.slice(target.end),
-    }))
-  }
-
   return {
     name,
     description,
@@ -83,6 +74,7 @@ function makeUpdateMutator(
       return targetsToOutputs(
         src,
         ctx.preCollected.updateTargets.get(mapKey) ?? [],
+        toOp,
       )
     },
     applyWithContext(
@@ -92,6 +84,7 @@ function makeUpdateMutator(
       return targetsToOutputs(
         src,
         ctx.preCollected.updateTargets.get(mapKey) ?? [],
+        toOp,
       )
     },
   }
@@ -106,17 +99,6 @@ function makeAssignmentMutator(
   fromOp: string,
   toOp: string,
 ): ASTMutator {
-  function targetsToOutputs(
-    src: string,
-    targets: OperatorTarget[],
-  ): readonly MutationOutput[] {
-    return targets.map((target) => ({
-      line: target.line,
-      col: target.col1,
-      code: src.slice(0, target.start) + toOp + src.slice(target.end),
-    }))
-  }
-
   return {
     name,
     description,
@@ -125,6 +107,7 @@ function makeAssignmentMutator(
       return targetsToOutputs(
         src,
         ctx.preCollected.assignmentTargets.get(fromOp) ?? [],
+        toOp,
       )
     },
     applyWithContext(
@@ -134,6 +117,7 @@ function makeAssignmentMutator(
       return targetsToOutputs(
         src,
         ctx.preCollected.assignmentTargets.get(fromOp) ?? [],
+        toOp,
       )
     },
   }

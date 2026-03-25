@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import { toErrorMessage } from './errors.js'
 
 /**
  * Istanbul coverage format types
@@ -55,17 +56,17 @@ export async function loadCoverageData(
   try {
     raw = await fs.readFile(absPath, 'utf8')
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
-    throw new Error(`Failed to read coverage file "${absPath}": ${msg}`)
+    throw new Error(
+      `Failed to read coverage file "${absPath}": ${toErrorMessage(err)}`,
+    )
   }
 
   let data: IstanbulCoverageData
   try {
     data = JSON.parse(raw) as IstanbulCoverageData
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
     throw new Error(
-      `Failed to parse coverage file "${absPath}" as JSON: ${msg}`,
+      `Failed to parse coverage file "${absPath}" as JSON: ${toErrorMessage(err)}`,
     )
   }
 

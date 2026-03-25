@@ -62,6 +62,16 @@ function findSingleDiff(
   return { origStart: start, origEnd, mutEnd }
 }
 
+const AST_SKIP_KEYS = new Set([
+  'type',
+  'start',
+  'end',
+  'loc',
+  'range',
+  'errors',
+  'operator', // skip operator — forces expansion to the full enclosing expression
+])
+
 function escapeId(id: string): string {
   return id.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
 }
@@ -99,8 +109,10 @@ function findSmallestEnclosingExpression(
   let best: { start: number; end: number } | null = null
 
   function walk(node: t.Node): void {
+    // prune: offset is outside this node's span
     if (offset < node.start! || offset >= node.end!) return
 
+    // track this node if it's an expression and smaller than current best
     if (t.isExpression(node)) {
       const span = node.end! - node.start!
       if (!best || span < best.end - best.start) {
@@ -109,25 +121,17 @@ function findSmallestEnclosingExpression(
     }
 
     for (const key of Object.keys(node)) {
-      if (
-        key === 'type' ||
-        key === 'start' ||
-        key === 'end' ||
-        key === 'loc' ||
-        key === 'range' ||
-        key === 'errors' ||
-        key === 'operator'
-      ) {
-        continue
-      }
+      if (AST_SKIP_KEYS.has(key)) continue
       const child = (node as unknown as Record<string, unknown>)[key]
       if (!child || typeof child !== 'object') continue
+      // recurse into child node arrays (e.g. function arguments)
       if (Array.isArray(child)) {
         for (const item of child) {
           if (item && typeof (item as t.Node).start === 'number') {
             walk(item as t.Node)
           }
         }
+        // recurse into single child nodes (e.g. callee, left, right)
       } else if (typeof (child as t.Node).start === 'number') {
         walk(child as t.Node)
       }

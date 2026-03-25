@@ -21,6 +21,8 @@ import type {
   CoverageConfig,
 } from '../types.js'
 import { createLogger } from '../../utils/logger.js'
+import { stripMutineerArgs } from '../shared/index.js'
+import { toErrorMessage } from '../../utils/errors.js'
 
 const require = createRequire(import.meta.url)
 const log = createLogger('vitest-adapter')
@@ -35,47 +37,6 @@ function resolveVitestPath(): string {
     const pkgJson = require.resolve('vitest/package.json')
     return path.join(path.dirname(pkgJson), 'vitest.mjs')
   }
-}
-
-/**
- * Strip mutineer-specific CLI args that shouldn't be passed to Vitest.
- */
-function stripMutineerArgs(args: string[]): string[] {
-  const out: string[] = []
-  const consumeNext = new Set([
-    '--concurrency',
-    '--progress',
-    '--min-kill-percent',
-    '--config',
-    '-c',
-    '--coverage-file',
-    '--shard',
-    '--report',
-  ])
-  const dropExact = new Set([
-    '-m',
-    '--mutate',
-    '--changed',
-    '--changed-with-deps',
-    '--full',
-    '--only-covered-lines',
-    '--per-test-coverage',
-    '--perTestCoverage',
-  ])
-
-  for (let i = 0; i < args.length; i++) {
-    const a = args[i]
-    if (dropExact.has(a)) continue
-    if (consumeNext.has(a)) {
-      i++
-      continue
-    }
-    if (a.startsWith('--min-kill-percent=')) continue
-    if (a.startsWith('--config=') || a.startsWith('-c=')) continue
-    if (a.startsWith('--shard=')) continue
-    out.push(a)
-  }
-  return out
 }
 
 /**
@@ -156,7 +117,10 @@ export class VitestAdapter implements TestRunnerAdapter {
     }
 
     // Prepare base args by stripping mutineer-specific flags
-    const stripped = stripMutineerArgs(options.cliArgs)
+    const stripped = stripMutineerArgs(options.cliArgs, {
+      extraConsumeNext: ['--shard'],
+      extraPrefixes: ['--shard='],
+    })
     this.baseArgs = ensureConfigArg(
       stripped,
       options.config.vitestConfig,
@@ -263,7 +227,7 @@ export class VitestAdapter implements TestRunnerAdapter {
       return {
         status: 'error',
         durationMs: 0,
-        error: err instanceof Error ? err.message : String(err),
+        error: toErrorMessage(err),
       }
     }
   }

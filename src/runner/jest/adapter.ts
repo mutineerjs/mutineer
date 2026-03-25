@@ -10,7 +10,6 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { createRequire } from 'node:module'
-// import os from 'node:os'
 
 import { JestPool } from './pool.js'
 import type {
@@ -22,51 +21,11 @@ import type {
   CoverageConfig,
 } from '../types.js'
 import { createLogger } from '../../utils/logger.js'
-
 import { JestRunCLI } from './worker-runtime.js'
+import { toErrorMessage } from '../../utils/errors.js'
 
 const require = createRequire(import.meta.url)
 const log = createLogger('jest-adapter')
-
-/**
- * Strip mutineer-specific CLI args that shouldn't be passed to Jest.
- */
-function stripMutineerArgs(args: string[]): string[] {
-  const out: string[] = []
-  const consumeNext = new Set([
-    '--concurrency',
-    '--progress',
-    '--min-kill-percent',
-    '--config',
-    '-c',
-    '--coverage-file',
-    '--runner',
-    '--report',
-  ])
-  const dropExact = new Set([
-    '-m',
-    '--mutate',
-    '--changed',
-    '--changed-with-deps',
-    '--full',
-    '--only-covered-lines',
-    '--per-test-coverage',
-    '--perTestCoverage',
-  ])
-
-  for (let i = 0; i < args.length; i++) {
-    const a = args[i]
-    if (dropExact.has(a)) continue
-    if (consumeNext.has(a)) {
-      i++
-      continue
-    }
-    if (a.startsWith('--min-kill-percent=')) continue
-    if (a.startsWith('--config=') || a.startsWith('-c=')) continue
-    out.push(a)
-  }
-  return out
-}
 
 type JestArgsMode = 'baseline' | 'baseline-with-coverage'
 
@@ -122,7 +81,6 @@ export class JestAdapter implements TestRunnerAdapter {
   constructor(options: TestRunnerAdapterOptions) {
     this.options = options
     this.jestConfigPath = options.config.jestConfig
-    stripMutineerArgs(options.cliArgs)
     this.requireFromCwd = createRequire(path.join(options.cwd, 'package.json'))
   }
 
@@ -177,10 +135,7 @@ export class JestAdapter implements TestRunnerAdapter {
       const { results } = await runCLI(cliOptions, [this.options.cwd])
       success = results.success
     } catch (err) {
-      log.debug(
-        'Failed to run Jest baseline: ' +
-          (err instanceof Error ? err.message : String(err)),
-      )
+      log.debug('Failed to run Jest baseline: ' + toErrorMessage(err))
     } finally {
       process.stdout.write = origStdoutWrite
       process.stderr.write = origStderrWrite
@@ -225,7 +180,7 @@ export class JestAdapter implements TestRunnerAdapter {
       return {
         status: 'error',
         durationMs: 0,
-        error: err instanceof Error ? err.message : String(err),
+        error: toErrorMessage(err),
       }
     }
   }

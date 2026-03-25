@@ -1,6 +1,5 @@
 import { fork, ChildProcess } from 'node:child_process'
 import * as path from 'node:path'
-import * as fs from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { EventEmitter } from 'node:events'
 import type {
@@ -9,6 +8,8 @@ import type {
   MutantRunSummary,
 } from '../../types/mutant.js'
 import { createLogger, DEBUG } from '../../utils/logger.js'
+import { resolveWorkerScript, type PendingTask } from '../shared/index.js'
+import { toErrorMessage } from '../../utils/errors.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -24,16 +25,10 @@ interface WorkerMessage {
   ok?: boolean
 }
 
-interface PendingTask {
-  resolve: (result: MutantRunSummary) => void
-  reject: (error: Error) => void
-  timeoutHandle: NodeJS.Timeout | null
-}
-
 class JestWorker extends EventEmitter {
   readonly id: string
   private process: ChildProcess | null = null
-  private pendingTask: PendingTask | null = null
+  private pendingTask: PendingTask<MutantRunSummary> | null = null
   private ready = false
   private shuttingDown = false
 
@@ -47,14 +42,7 @@ class JestWorker extends EventEmitter {
   }
 
   async start(): Promise<void> {
-    const workerJs = path.join(__dirname, 'worker.js')
-    const workerMts = path.join(__dirname, 'worker.mjs')
-    const workerTs = path.join(__dirname, 'worker.mts')
-    const workerScript = fs.existsSync(workerJs)
-      ? workerJs
-      : fs.existsSync(workerMts)
-        ? workerMts
-        : workerTs
+    const workerScript = resolveWorkerScript(__dirname, 'worker')
 
     const env: NodeJS.ProcessEnv = {
       ...process.env,
@@ -406,7 +394,7 @@ export async function runWithJestPool(
     return {
       status: 'error',
       durationMs: 0,
-      error: err instanceof Error ? err.message : String(err),
+      error: toErrorMessage(err),
     }
   }
 }

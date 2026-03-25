@@ -5,6 +5,7 @@ import fg from 'fast-glob'
 import { normalizePath } from '../utils/normalizePath.js'
 import type { MutateTarget, MutineerConfig } from '../types/config.js'
 import { createLogger } from '../utils/logger.js'
+import { toErrorMessage } from '../utils/errors.js'
 
 const TEST_PATTERNS_DEFAULT: readonly string[] = [
   '**/*.test.[jt]s?(x)',
@@ -130,9 +131,8 @@ async function createViteResolver(
         plugins =
           typeof vue === 'function' ? [(vue as () => PluginOption)()] : []
       } catch (err) {
-        const detail = err instanceof Error ? err.message : String(err)
         log.warn(
-          `Unable to load @vitejs/plugin-vue; Vue SFC imports may fail to resolve (${detail})`,
+          `Unable to load @vitejs/plugin-vue; Vue SFC imports may fail to resolve (${toErrorMessage(err)})`,
         )
       }
     }

@@ -12,6 +12,7 @@ import {
   clearRedirect,
 } from '../shared/index.js'
 import { createLogger } from '../../utils/logger.js'
+import { toErrorMessage } from '../../utils/errors.js'
 
 const log = createLogger('vitest-runtime')
 
@@ -175,7 +176,7 @@ export class VitestWorkerRuntime {
       return {
         killed: true,
         durationMs: Date.now() - start,
-        error: err instanceof Error ? err.message : String(err),
+        error: toErrorMessage(err),
       }
     } finally {
       if (useSchema) {

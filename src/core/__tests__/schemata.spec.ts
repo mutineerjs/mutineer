@@ -234,6 +234,7 @@ describe('generateSchema', () => {
     ])
     expect(fallbackIds.has('f#0')).toBe(true)
     expect(fallbackIds.has('f#1')).toBe(false)
+    expect(schemaCode).not.toContain("'f#0'")
     expect(schemaCode).toContain("'f#1'")
   })
 
