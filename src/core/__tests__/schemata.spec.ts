@@ -179,4 +179,71 @@ describe('generateSchema', () => {
     expect(schemaCode).toContain("'f#0'")
     expect(schemaCode).toContain("'f#1'")
   })
+
+  it('finds the smallest enclosing expression when operator is nested inside a call', () => {
+    // CallExpression 'foo(x + y)' and BinaryExpression 'x + y' both contain the '+'
+    // offset. Walk visits outer (CallExpression) first — !best true — then inner
+    // (BinaryExpression) — !best false, span < best span — so best is updated to inner.
+    const original = 'foo(x + y)'
+    const { schemaCode, fallbackIds } = generateSchema(original, [
+      makeVariant('f#0', 'foo(x - y)'),
+    ])
+    expect(fallbackIds.size).toBe(0)
+    expect(schemaCode).toContain('x - y')
+    expect(schemaCode).toContain('x + y')
+  })
+
+  it('handles sparse array elements (null entries in Babel AST arrays) without crashing', () => {
+    // '[1,,a+b]' produces an ArrayExpression with a null element for the elision.
+    // The walk must skip the null entry and still find the BinaryExpression 'a+b'.
+    const original = '[1,,a+b]'
+    const { schemaCode, fallbackIds } = generateSchema(original, [
+      makeVariant('f#0', '[1,,a-b]'),
+    ])
+    expect(fallbackIds.size).toBe(0)
+    expect(schemaCode).toContain('a-b')
+    expect(schemaCode).toContain('a+b')
+  })
+
+  it('marks operator variant as fallback when original code cannot be parsed', () => {
+    // Unterminated brace causes Babel parse error → parseForSchema returns null
+    const original = 'const x = {'
+    const v = makeVariant('f#0', 'const x = |')
+    const { fallbackIds } = generateSchema(original, [v])
+    expect(fallbackIds.has('f#0')).toBe(true)
+  })
+
+  it('marks operator variant as fallback when operator is inside a comment (no enclosing expression)', () => {
+    // parseForSchema succeeds but findSmallestEnclosingExpression returns null
+    // because position 3 is inside a comment, not any AST expression node
+    const original = '// +\nconst x = 1'
+    const v = makeVariant('f#0', '// -\nconst x = 1')
+    const { fallbackIds } = generateSchema(original, [v])
+    expect(fallbackIds.has('f#0')).toBe(true)
+  })
+
+  it('marks outer site as fallback when inner site is fully contained within it', () => {
+    // '&&' maps to outer BinaryExpression [0,12]; '+' maps to inner 'b + c' [6,11]
+    // b.origEnd=11 <= a.origEnd=12 → outer marked fallback, inner kept
+    const original = 'a && (b + c)'
+    const vOuter = makeVariant('f#0', 'a || (b + c)') // && → ||
+    const vInner = makeVariant('f#1', 'a && (b - c)') // + → -
+    const { schemaCode, fallbackIds } = generateSchema(original, [
+      vOuter,
+      vInner,
+    ])
+    expect(fallbackIds.has('f#0')).toBe(true)
+    expect(fallbackIds.has('f#1')).toBe(false)
+    expect(schemaCode).toContain("'f#1'")
+  })
+
+  it('marks both sites as fallback when they partially overlap', () => {
+    // Sites [0:3] and [2:5] partially overlap (neither fully contains the other)
+    const original = 'a>b>c'
+    const v0 = makeVariant('f#0', 'X>Y>c') // changes [0:3] (a>b → X>Y)
+    const v1 = makeVariant('f#1', 'a>B>C') // changes [2:5] (b>c → B>C)
+    const { fallbackIds } = generateSchema(original, [v0, v1])
+    expect(fallbackIds.has('f#0')).toBe(true)
+    expect(fallbackIds.has('f#1')).toBe(true)
+  })
 })

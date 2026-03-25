@@ -74,6 +74,83 @@ describe('createViteResolver Vue plugin gating', () => {
     }
   })
 
+  it('successfully loads @vitejs/plugin-vue when available and .vue files exist', async () => {
+    vi.doMock('@vitejs/plugin-vue', () => ({
+      default: () => ({}),
+    }))
+
+    const tmpDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mutineer-discover-vueok-'),
+    )
+    const srcDir = path.join(tmpDir, 'src')
+    await fs.mkdir(srcDir, { recursive: true })
+    await fs.writeFile(
+      path.join(srcDir, 'Comp.vue'),
+      '<template><div/></template>\n',
+      'utf8',
+    )
+    await fs.writeFile(
+      path.join(srcDir, 'a.ts'),
+      'export const a = 1\n',
+      'utf8',
+    )
+    const importLine = ['im', 'port { a } from "./a"'].join('')
+    await fs.writeFile(
+      path.join(srcDir, 'a.test.ts'),
+      `${importLine}\n`,
+      'utf8',
+    )
+
+    try {
+      await autoDiscoverTargetsAndTests(tmpDir, {
+        testPatterns: ['**/*.test.ts'],
+        extensions: ['.vue', '.ts'],
+      })
+      // Should not warn about plugin-vue
+      const pluginVueWarnings = warnSpy.mock.calls.filter((args: unknown[]) =>
+        String(args[0]).includes('plugin-vue'),
+      )
+      expect(pluginVueWarnings).toHaveLength(0)
+    } finally {
+      vi.doUnmock('@vitejs/plugin-vue')
+      await fs.rm(tmpDir, { recursive: true, force: true })
+    }
+  })
+
+  it('does not load @vitejs/plugin-vue when extensions excludes .vue', async () => {
+    const tmpDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mutineer-discover-novueext-'),
+    )
+    const srcDir = path.join(tmpDir, 'src')
+    await fs.mkdir(srcDir, { recursive: true })
+    await fs.writeFile(
+      path.join(srcDir, 'a.ts'),
+      'export const a = 1\n',
+      'utf8',
+    )
+    const importLine = ['im', 'port { a } from "./a"'].join('')
+    await fs.writeFile(
+      path.join(srcDir, 'a.test.ts'),
+      `${importLine}\n`,
+      'utf8',
+    )
+
+    try {
+      const result = await autoDiscoverTargetsAndTests(tmpDir, {
+        testPatterns: ['**/*.test.ts'],
+        extensions: ['.ts'],
+      })
+      // Plugin-vue code is skipped entirely; no warnings
+      const pluginVueWarnings = warnSpy.mock.calls.filter((args: unknown[]) =>
+        String(args[0]).includes('plugin-vue'),
+      )
+      expect(pluginVueWarnings).toHaveLength(0)
+      expect(result.targets.length).toBeGreaterThan(0)
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true })
+    }
+  })
+
   it('warns when .vue files exist but @vitejs/plugin-vue fails to load', async () => {
     vi.doMock('@vitejs/plugin-vue', () => {
       throw new Error('Cannot find module @vitejs/plugin-vue')
@@ -118,6 +195,22 @@ describe('createViteResolver Vue plugin gating', () => {
 })
 
 describe('autoDiscoverTargetsAndTests', () => {
+  it('returns empty result when no test files found', async () => {
+    const tmpDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mutineer-discover-notests-'),
+    )
+    try {
+      const result = await autoDiscoverTargetsAndTests(tmpDir, {
+        testPatterns: ['**/*.test.ts'],
+      })
+      expect(result.targets).toHaveLength(0)
+      expect(result.testMap.size).toBe(0)
+      expect(result.directTestMap.size).toBe(0)
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true })
+    }
+  })
+
   it('directTestMap only includes direct importers', async () => {
     const tmpDir = await fs.mkdtemp(
       path.join(os.tmpdir(), 'mutineer-discover-direct-'),
@@ -317,6 +410,166 @@ describe('autoDiscoverTargetsAndTests', () => {
 
       expect(directTestMap.get(sharedAbs)?.has(test1Abs)).toBe(true)
       expect(directTestMap.get(sharedAbs)?.has(test2Abs)).toBe(true)
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true })
+    }
+  })
+
+  it('excludes files matching excludePaths prefix', async () => {
+    const tmpDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mutineer-discover-exclude-'),
+    )
+    const srcDir = path.join(tmpDir, 'src')
+    const adminDir = path.join(srcDir, 'admin')
+    const adminFile = path.join(adminDir, 'restricted.ts')
+    const publicFile = path.join(srcDir, 'public.ts')
+    const testFile = path.join(srcDir, 'a.test.ts')
+
+    await fs.mkdir(adminDir, { recursive: true })
+    await fs.writeFile(adminFile, 'export const restricted = 1\n', 'utf8')
+    await fs.writeFile(publicFile, 'export const pub = 2\n', 'utf8')
+    const importLine = [
+      ['im', 'port { pub } from "./public"'].join(''),
+      ['im', 'port { restricted } from "./admin/restricted"'].join(''),
+    ].join('\n')
+    await fs.writeFile(testFile, `${importLine}\n`, 'utf8')
+
+    try {
+      const { targets } = await autoDiscoverTargetsAndTests(tmpDir, {
+        testPatterns: ['**/*.test.ts'],
+        excludePaths: ['src/admin'],
+      })
+      const targetFiles = targets.map((t) =>
+        normalizePath(typeof t === 'string' ? t : t.file),
+      )
+      expect(targetFiles.some((f) => f.includes('restricted.ts'))).toBe(false)
+      expect(targetFiles.some((f) => f.includes('public.ts'))).toBe(true)
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true })
+    }
+  })
+
+  it('excludes files matching excludePaths glob pattern', async () => {
+    const tmpDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mutineer-discover-excludeglob-'),
+    )
+    const srcDir = path.join(tmpDir, 'src')
+    const adminDir = path.join(srcDir, 'admin')
+    const adminFile = path.join(adminDir, 'restricted.ts')
+    const publicFile = path.join(srcDir, 'public.ts')
+    const testFile = path.join(srcDir, 'a.test.ts')
+
+    await fs.mkdir(adminDir, { recursive: true })
+    await fs.writeFile(adminFile, 'export const restricted = 1\n', 'utf8')
+    await fs.writeFile(publicFile, 'export const pub = 2\n', 'utf8')
+    const importLine = [
+      ['im', 'port { pub } from "./public"'].join(''),
+      ['im', 'port { restricted } from "./admin/restricted"'].join(''),
+    ].join('\n')
+    await fs.writeFile(testFile, `${importLine}\n`, 'utf8')
+
+    try {
+      const { targets } = await autoDiscoverTargetsAndTests(tmpDir, {
+        testPatterns: ['**/*.test.ts'],
+        excludePaths: ['src/admin/**'],
+      })
+      const targetFiles = targets.map((t) =>
+        normalizePath(typeof t === 'string' ? t : t.file),
+      )
+      expect(targetFiles.some((f) => f.includes('restricted.ts'))).toBe(false)
+      expect(targetFiles.some((f) => f.includes('public.ts'))).toBe(true)
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true })
+    }
+  })
+
+  it('handles unreadable dependency gracefully', async () => {
+    const tmpDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mutineer-discover-unreadable-'),
+    )
+    const srcDir = path.join(tmpDir, 'src')
+    const sourceFile = path.join(srcDir, 'source.ts')
+    const testFile = path.join(srcDir, 'source.test.ts')
+
+    await fs.mkdir(srcDir, { recursive: true })
+    // source.ts imports ./ghost which doesn't exist on disk
+    const ghostImport = ['im', 'port { x } from "./ghost"'].join('')
+    await fs.writeFile(
+      sourceFile,
+      `${ghostImport}\nexport const y = 1\n`,
+      'utf8',
+    )
+    const importLine = ['im', 'port { y } from "./source"'].join('')
+    await fs.writeFile(testFile, `${importLine}\n`, 'utf8')
+
+    try {
+      const { targets } = await autoDiscoverTargetsAndTests(tmpDir, {
+        testPatterns: ['**/*.test.ts'],
+      })
+      const targetFiles = targets.map((t) =>
+        normalizePath(typeof t === 'string' ? t : t.file),
+      )
+      expect(targetFiles.some((f) => f.includes('source.ts'))).toBe(true)
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true })
+    }
+  })
+
+  it('uses default testPatterns when cfg.testPatterns is not set', async () => {
+    const tmpDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mutineer-discover-defaultpat-'),
+    )
+    const srcDir = path.join(tmpDir, 'src')
+    const moduleFile = path.join(srcDir, 'foo.ts')
+    const testFile = path.join(srcDir, 'foo.spec.ts')
+
+    await fs.mkdir(srcDir, { recursive: true })
+    await fs.writeFile(moduleFile, 'export const foo = 1\n', 'utf8')
+    const importLine = ['im', 'port { foo } from "./foo"'].join('')
+    await fs.writeFile(testFile, `${importLine}\n`, 'utf8')
+
+    try {
+      // No testPatterns → uses TEST_PATTERNS_DEFAULT which includes **/*.spec.[jt]s?(x)
+      const { targets } = await autoDiscoverTargetsAndTests(tmpDir, {})
+      const targetFiles = targets.map((t) =>
+        normalizePath(typeof t === 'string' ? t : t.file),
+      )
+      expect(targetFiles).toContain(normalizePath(moduleFile))
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true })
+    }
+  })
+
+  it('assigns vue:script-setup kind to .vue source files', async () => {
+    const tmpDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mutineer-discover-vuekind-'),
+    )
+    const srcDir = path.join(tmpDir, 'src')
+    const vueFile = path.join(srcDir, 'Comp.vue')
+    const testFile = path.join(srcDir, 'Comp.test.ts')
+
+    await fs.mkdir(srcDir, { recursive: true })
+    await fs.writeFile(
+      vueFile,
+      '<script setup>\nconst x = 1\n</script>\n',
+      'utf8',
+    )
+    const importLine = ['im', `port Comp from "./Comp.vue"`].join('')
+    await fs.writeFile(testFile, `${importLine}\n`, 'utf8')
+
+    try {
+      const { targets } = await autoDiscoverTargetsAndTests(tmpDir, {
+        testPatterns: ['**/*.test.ts'],
+        extensions: ['.vue', '.ts'],
+      })
+      const vueTarget = targets.find(
+        (t) =>
+          typeof t !== 'string' && normalizePath(t.file).endsWith('Comp.vue'),
+      )
+      expect(vueTarget).toBeDefined()
+      expect(typeof vueTarget !== 'string' && vueTarget?.kind).toBe(
+        'vue:script-setup',
+      )
     } finally {
       await fs.rm(tmpDir, { recursive: true, force: true })
     }

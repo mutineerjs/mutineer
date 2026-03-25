@@ -148,6 +148,67 @@ describe('resolveCoverageConfig', () => {
     expect(result.needsCoverageFromBaseline).toBe(true)
     expect(result.enableCoverageForBaseline).toBe(true)
   })
+
+  it('loads coverage data when coverageFilePath is provided', async () => {
+    const coverageJson = {
+      '/src/foo.ts': {
+        path: '/src/foo.ts',
+        statementMap: {
+          '0': { start: { line: 1, column: 0 }, end: { line: 1, column: 10 } },
+        },
+        s: { '0': 1 },
+      },
+    }
+    const covDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mutineer-cov-file-'),
+    )
+    const covFile = path.join(covDir, 'coverage-final.json')
+    await fs.writeFile(covFile, JSON.stringify(coverageJson))
+
+    try {
+      const opts = makeOpts({ coverageFilePath: covFile })
+      const result = await resolveCoverageConfig(opts, {}, makeAdapter(), [])
+      expect(result.coverageData).not.toBeNull()
+      expect(result.coverageData!.coveredLines.size).toBeGreaterThan(0)
+    } finally {
+      await fs.rm(covDir, { recursive: true, force: true })
+    }
+  })
+
+  it('logs warning when onlyCoveredLines + coverageData + no coverage provider', async () => {
+    const coverageJson = {
+      '/src/foo.ts': {
+        path: '/src/foo.ts',
+        statementMap: {
+          '0': { start: { line: 1, column: 0 }, end: { line: 1, column: 10 } },
+        },
+        s: { '0': 1 },
+      },
+    }
+    const covDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mutineer-cov-warn-'),
+    )
+    const covFile = path.join(covDir, 'coverage-final.json')
+    await fs.writeFile(covFile, JSON.stringify(coverageJson))
+
+    try {
+      const opts = makeOpts({
+        wantsOnlyCoveredLines: true,
+        coverageFilePath: covFile,
+      })
+      const adapter = makeAdapter({
+        hasCoverageProvider: vi.fn().mockReturnValue(false),
+      })
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      await resolveCoverageConfig(opts, {}, adapter, [])
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('onlyCoveredLines'),
+      )
+      warnSpy.mockRestore()
+    } finally {
+      await fs.rm(covDir, { recursive: true, force: true })
+    }
+  })
 })
 
 describe('loadCoverageAfterBaseline', () => {
@@ -225,5 +286,47 @@ describe('loadCoverageAfterBaseline', () => {
     }
     const result = await loadCoverageAfterBaseline(resolution, tmpDir)
     expect(result.perTestCoverage).toBeNull()
+  })
+
+  it('loads per-test coverage when wantsPerTestCoverage is true', async () => {
+    const coverageDir = path.join(tmpDir, 'coverage')
+    await fs.mkdir(coverageDir, { recursive: true })
+    const testFile = '/test/foo.spec.ts'
+    const srcFile = '/src/foo.ts'
+    const perTestData = {
+      [testFile]: { [srcFile]: [1, 2, 3] },
+    }
+    await fs.writeFile(
+      path.join(coverageDir, 'per-test-coverage.json'),
+      JSON.stringify(perTestData),
+    )
+
+    const resolution: CoverageResolution = {
+      coverageData: null,
+      perTestCoverage: null,
+      enableCoverageForBaseline: true,
+      wantsPerTestCoverage: true,
+      needsCoverageFromBaseline: false,
+    }
+    const result = await loadCoverageAfterBaseline(resolution, tmpDir)
+    expect(result.perTestCoverage).not.toBeNull()
+    expect(result.perTestCoverage!.size).toBeGreaterThan(0)
+  })
+
+  it('logs warning when per-test coverage data is not found', async () => {
+    const resolution: CoverageResolution = {
+      coverageData: null,
+      perTestCoverage: null,
+      enableCoverageForBaseline: true,
+      wantsPerTestCoverage: true,
+      needsCoverageFromBaseline: false,
+    }
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const result = await loadCoverageAfterBaseline(resolution, tmpDir)
+    expect(result.perTestCoverage).toBeNull()
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Per-test coverage data not found'),
+    )
+    warnSpy.mockRestore()
   })
 })

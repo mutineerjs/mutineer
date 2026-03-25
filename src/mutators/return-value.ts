@@ -42,18 +42,15 @@ function collectReturnMutations(
       const node = path.node
       if (!node.argument) return // bare return; — nothing to replace
 
-      const line = node.loc?.start.line
-      if (line === undefined) return
+      const line = node.loc!.start.line
       if (ignoreLines.has(line)) return
 
       const replacement = replacer(node.argument)
       if (replacement === null) return
 
-      const argStart = node.argument.start
-      const argEnd = node.argument.end
-      if (argStart == null || argEnd == null) return
-
-      const col = getVisualColumn(src, node.start ?? 0)
+      const argStart = node.argument.start!
+      const argEnd = node.argument.end!
+      const col = getVisualColumn(src, node.start!)
       const code = src.slice(0, argStart) + replacement + src.slice(argEnd)
       outputs.push({ line, col, code })
     },
@@ -73,7 +70,7 @@ function makeReturnMutator(
     apply(src: string): readonly MutationOutput[] {
       const ast = parseSource(src)
       const fileAst = ast as t.File & { comments?: t.Comment[] }
-      const ignoreLines = buildIgnoreLines(fileAst.comments ?? [])
+      const ignoreLines = buildIgnoreLines(fileAst.comments!)
       return collectReturnMutations(src, ast, ignoreLines, replacer)
     },
     applyWithContext(

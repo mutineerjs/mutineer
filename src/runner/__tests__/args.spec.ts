@@ -164,6 +164,11 @@ describe('parseConcurrency', () => {
     const result = parseConcurrency(['--concurrency', 'abc'])
     expect(result).toBeGreaterThanOrEqual(1)
   })
+
+  it('handles --concurrency flag with no following value', () => {
+    const result = parseConcurrency(['--concurrency'])
+    expect(result).toBeGreaterThanOrEqual(1)
+  })
 })
 
 describe('parseProgressMode', () => {

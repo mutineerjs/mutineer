@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import os from 'node:os'
@@ -76,5 +76,61 @@ describe('loadMutineerConfig', () => {
     await expect(loadMutineerConfig(tmpDir)).rejects.toThrow(
       'does not export a valid configuration object',
     )
+  })
+
+  it('loads a .ts config file via vite', async () => {
+    const configFile = path.join(tmpDir, 'mutineer.config.ts')
+    await fs.writeFile(configFile, 'export default { runner: "vitest" }\n')
+    const config = await loadMutineerConfig(tmpDir)
+    expect(config).toEqual({ runner: 'vitest' })
+  })
+
+  it('throws with helpful message when TypeScript config fails to load', async () => {
+    vi.doMock('vite', () => ({
+      loadConfigFromFile: vi
+        .fn()
+        .mockRejectedValue(new Error('vite not available')),
+    }))
+    vi.resetModules()
+    const { loadMutineerConfig: loadConfig } = await import('../config.js')
+    const configFile = path.join(tmpDir, 'mutineer.config.ts')
+    await fs.writeFile(configFile, 'export default { runner: "vitest" }')
+    await expect(loadConfig(tmpDir)).rejects.toThrow(
+      'Cannot load TypeScript config',
+    )
+    vi.doUnmock('vite')
+  })
+
+  it('loads a module with named exports only (no default export)', async () => {
+    const configFile = path.join(tmpDir, 'mutineer.config.mjs')
+    // No `export default` — exercises the `mod` fallback in loadModule
+    await fs.writeFile(configFile, 'export const runner = "vitest"')
+    const config = await loadMutineerConfig(tmpDir)
+    expect((config as Record<string, unknown>).runner).toBe('vitest')
+  })
+
+  it('returns empty config when Vite loadConfigFromFile returns null', async () => {
+    vi.doMock('vite', () => ({
+      loadConfigFromFile: vi.fn().mockResolvedValue(null),
+    }))
+    vi.resetModules()
+    const { loadMutineerConfig: loadConfig } = await import('../config.js')
+    const configFile = path.join(tmpDir, 'mutineer.config.ts')
+    await fs.writeFile(configFile, 'export default {}')
+    const config = await loadConfig(tmpDir)
+    expect(config).toEqual({})
+    vi.doUnmock('vite')
+  })
+
+  it('stringifies non-Error thrown by loadConfigFromFile', async () => {
+    vi.doMock('vite', () => ({
+      loadConfigFromFile: vi.fn().mockRejectedValue('plain string error'),
+    }))
+    vi.resetModules()
+    const { loadMutineerConfig: loadConfig } = await import('../config.js')
+    const configFile = path.join(tmpDir, 'mutineer.config.ts')
+    await fs.writeFile(configFile, 'export default {}')
+    await expect(loadConfig(tmpDir)).rejects.toThrow('plain string error')
+    vi.doUnmock('vite')
   })
 })

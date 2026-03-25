@@ -30,7 +30,7 @@ const log = createLogger('ts-checker')
  * We read strict/noImplicitAny/etc from the user's tsconfig (to catch the
  * same errors they care about), but always override lib/resolve settings.
  */
-function resolveCompilerOptions(
+export function resolveCompilerOptions(
   tsconfig: string | undefined,
   cwd: string,
 ): ts.CompilerOptions {

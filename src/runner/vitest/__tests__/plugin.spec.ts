@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from 'vitest'
+import { describe, it, expect, afterEach, vi } from 'vitest'
 import fs from 'node:fs/promises'
 import fssync from 'node:fs'
 import path from 'node:path'
@@ -186,6 +186,37 @@ describe('poolMutineerPlugin', () => {
       expect(result).toBe('// mutated')
     } finally {
       await fs.rm(tmpDir, { recursive: true, force: true })
+    }
+  })
+
+  it('returns null and logs error when readFileSync throws on redirect', async () => {
+    const tmpDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mutineer-plugin-err-'),
+    )
+    const fromPath = path.join(tmpDir, 'source.ts')
+    const mutatedPath = path.join(tmpDir, 'mutated.ts')
+    ;(globalThis as any).__mutineer_redirect__ = {
+      from: fromPath,
+      to: mutatedPath,
+    }
+    const readSpy = vi
+      .spyOn(fssync, 'readFileSync')
+      .mockImplementationOnce(() => {
+        throw new Error('disk error')
+      })
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      const load = getLoadFn()
+      const result = load?.(fromPath)
+      expect(result).toBeNull()
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Failed to read mutant file'),
+      )
+    } finally {
+      readSpy.mockRestore()
+      consoleSpy.mockRestore()
+      ;(globalThis as any).__mutineer_redirect__ = undefined
+      await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {})
     }
   })
 

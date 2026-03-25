@@ -16,12 +16,12 @@ interface WorkerInput {
 }
 
 /** Stable fingerprint for a diagnostic. */
-function diagnosticKey(d: ts.Diagnostic): string {
+export function diagnosticKey(d: ts.Diagnostic): string {
   return `${d.code}:${d.start ?? -1}`
 }
 
 /** Create a compiler host that serves `code` for `targetPath`. */
-function makeHost(
+export function makeHost(
   options: ts.CompilerOptions,
   targetPath: string,
   code: string,
@@ -41,7 +41,7 @@ function makeHost(
 }
 
 /** Run semantic diagnostics for `code` in `targetPath`. */
-function diagnose(
+export function diagnose(
   options: ts.CompilerOptions,
   targetPath: string,
   code: string,
@@ -66,43 +66,45 @@ function diagnose(
   return { program, keys }
 }
 
-const { options, filePath, variants } = workerData as WorkerInput
-const resolvedPath = path.resolve(filePath)
+if (workerData) {
+  const { options, filePath, variants } = workerData as WorkerInput
+  const resolvedPath = path.resolve(filePath)
 
-let originalCode = ''
-try {
-  originalCode = fs.readFileSync(resolvedPath, 'utf8')
-} catch {
-  // empty baseline — all mutant errors count as new
-}
+  let originalCode = ''
+  try {
+    originalCode = fs.readFileSync(resolvedPath, 'utf8')
+  } catch {
+    // empty baseline — all mutant errors count as new
+  }
 
-const { program: baseProgram, keys: baselineKeys } = diagnose(
-  options,
-  resolvedPath,
-  originalCode,
-  undefined,
-)
-
-let prevProgram: ts.Program = baseProgram
-const compileErrorIds: string[] = []
-
-for (const variant of variants) {
-  const { program: mutProgram, keys: mutantKeys } = diagnose(
+  const { program: baseProgram, keys: baselineKeys } = diagnose(
     options,
     resolvedPath,
-    variant.code,
-    prevProgram,
+    originalCode,
+    undefined,
   )
-  prevProgram = mutProgram
 
-  let newErrors = 0
-  for (const key of mutantKeys) {
-    if (!baselineKeys.has(key)) newErrors++
+  let prevProgram: ts.Program = baseProgram
+  const compileErrorIds: string[] = []
+
+  for (const variant of variants) {
+    const { program: mutProgram, keys: mutantKeys } = diagnose(
+      options,
+      resolvedPath,
+      variant.code,
+      prevProgram,
+    )
+    prevProgram = mutProgram
+
+    let newErrors = 0
+    for (const key of mutantKeys) {
+      if (!baselineKeys.has(key)) newErrors++
+    }
+
+    if (newErrors > 0) {
+      compileErrorIds.push(variant.id)
+    }
   }
 
-  if (newErrors > 0) {
-    compileErrorIds.push(variant.id)
-  }
+  parentPort!.postMessage({ compileErrorIds })
 }
-
-parentPort!.postMessage({ compileErrorIds })

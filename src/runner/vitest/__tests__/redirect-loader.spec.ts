@@ -9,7 +9,7 @@ vi.mock('node:module', async (importOriginal) => {
   return { ...actual, register: vi.fn() }
 })
 
-import { resolve as poolResolve, initialise } from '../redirect-loader.js'
+import { resolve as poolResolve, initialise, load } from '../redirect-loader.js'
 
 describe('pool-redirect-loader resolve', () => {
   afterEach(() => {
@@ -240,5 +240,167 @@ describe('pool-redirect-loader resolve', () => {
 
     // Falls through to nextResolve
     expect(nextResolve).toHaveBeenCalled()
+  })
+
+  it('returns null from tryResolveTsExtension when parentURL is absent', async () => {
+    const nextResolve = vi.fn().mockResolvedValue({
+      url: 'file:///fallback.js',
+      shortCircuit: false,
+    })
+
+    await poolResolve('./foo.js', {}, nextResolve as any)
+
+    // Falls through to nextResolve
+    expect(nextResolve).toHaveBeenCalled()
+  })
+
+  it('falls through to nextResolve when neither .ts nor .tsx exists', async () => {
+    const tmpDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mutineer-pool-loader-'),
+    )
+    const parentFile = path.join(tmpDir, 'src', 'index.ts')
+    await fs.mkdir(path.dirname(parentFile), { recursive: true })
+    await fs.writeFile(parentFile, 'export {}', 'utf8')
+    // foo.ts and foo.tsx do NOT exist — tryResolveTsExtension returns null at end of loop
+
+    const nextResolve = vi.fn().mockResolvedValue({
+      url: 'file:///fallback.js',
+      shortCircuit: false,
+    })
+
+    try {
+      await poolResolve(
+        './foo.js',
+        { parentURL: pathToFileURL(parentFile).href },
+        nextResolve as any,
+      )
+      expect(nextResolve).toHaveBeenCalled()
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true })
+    }
+  })
+
+  it('logs debug info when DEBUG is enabled', async () => {
+    initialise({ debug: true })
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const nextResolve = vi.fn().mockResolvedValue({
+      url: 'file:///some.ts',
+      shortCircuit: false,
+    })
+
+    await poolResolve(
+      './something',
+      { parentURL: 'file:///src/index.ts' },
+      nextResolve as any,
+    )
+
+    expect(errSpy).toHaveBeenCalled()
+    errSpy.mockRestore()
+  })
+
+  it('logs active redirect and REDIRECTING when DEBUG is enabled and redirect matches after nextResolve', async () => {
+    const tmpDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mutineer-pool-loader-'),
+    )
+    const fromPath = path.join(tmpDir, 'target.ts')
+    const mutatedPath = path.join(tmpDir, 'mutated.ts')
+    await fs.writeFile(fromPath, 'export {}', 'utf8')
+    await fs.writeFile(mutatedPath, 'export {}', 'utf8')
+
+    initialise({ debug: true })
+    ;(globalThis as any).__mutineer_redirect__ = {
+      from: fromPath,
+      to: mutatedPath,
+    }
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const nextResolve = vi.fn().mockResolvedValue({
+      url: pathToFileURL(fromPath).href,
+      shortCircuit: false,
+    })
+
+    try {
+      const result = await poolResolve(
+        './target',
+        { parentURL: 'file:///src/index.ts' },
+        nextResolve as any,
+      )
+      expect(result!.url).toBe(pathToFileURL(mutatedPath).href)
+      expect(errSpy).toHaveBeenCalledWith(
+        expect.stringContaining('REDIRECTING'),
+      )
+    } finally {
+      errSpy.mockRestore()
+      await fs.rm(tmpDir, { recursive: true, force: true })
+    }
+  })
+
+  it('logs .js -> .ts redirect info when DEBUG is enabled and ts file exists', async () => {
+    const tmpDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mutineer-pool-loader-'),
+    )
+    const parentFile = path.join(tmpDir, 'src', 'index.ts')
+    const tsFile = path.join(tmpDir, 'src', 'foo.ts')
+    await fs.mkdir(path.dirname(parentFile), { recursive: true })
+    await fs.writeFile(parentFile, 'export {}', 'utf8')
+    await fs.writeFile(tsFile, 'export const foo = 1', 'utf8')
+
+    initialise({ debug: true })
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const nextResolve = vi.fn()
+
+    try {
+      await poolResolve(
+        './foo.js',
+        { parentURL: pathToFileURL(parentFile).href },
+        nextResolve as any,
+      )
+      expect(errSpy).toHaveBeenCalledWith(expect.stringContaining('.js -> .ts'))
+    } finally {
+      errSpy.mockRestore()
+      await fs.rm(tmpDir, { recursive: true, force: true })
+    }
+  })
+
+  it('logs REDIRECTING when DEBUG is enabled and .ts resolved file matches redirect', async () => {
+    const tmpDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mutineer-pool-loader-'),
+    )
+    const parentFile = path.join(tmpDir, 'src', 'index.ts')
+    const fromPath = path.join(tmpDir, 'src', 'target.ts')
+    const mutatedPath = path.join(tmpDir, 'mutated.ts')
+    await fs.mkdir(path.dirname(parentFile), { recursive: true })
+    await fs.writeFile(parentFile, 'export {}', 'utf8')
+    await fs.writeFile(fromPath, 'export {}', 'utf8')
+    await fs.writeFile(mutatedPath, 'export {}', 'utf8')
+
+    initialise({ debug: true })
+    ;(globalThis as any).__mutineer_redirect__ = {
+      from: fromPath,
+      to: mutatedPath,
+    }
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const nextResolve = vi.fn()
+
+    try {
+      const result = await poolResolve(
+        './target.js',
+        { parentURL: pathToFileURL(parentFile).href },
+        nextResolve as any,
+      )
+      expect(result!.url).toBe(pathToFileURL(mutatedPath).href)
+      expect(errSpy).toHaveBeenCalledWith(
+        expect.stringContaining('REDIRECTING'),
+      )
+    } finally {
+      errSpy.mockRestore()
+      await fs.rm(tmpDir, { recursive: true, force: true })
+    }
+  })
+
+  it('load() passes through to nextLoad', async () => {
+    const nextLoad = vi.fn().mockResolvedValue({ source: '// code' })
+    const result = await load('file:///foo.ts', {}, nextLoad as any)
+    expect(nextLoad).toHaveBeenCalledWith('file:///foo.ts', {})
+    expect(result).toEqual({ source: '// code' })
   })
 })

@@ -179,6 +179,14 @@ describe('decodeCacheKey', () => {
     expect(decoded.line).toBe(10)
     expect(decoded.col).toBe(5)
   })
+
+  it('falls back to full key when file segment is empty', () => {
+    // a:b::1,0:mutator → after parsing, restAfterFirst.slice(secondColon+1) = '' → falls back to key
+    const key = 'a:b::1,0:mutator'
+    const decoded = decodeCacheKey(key)
+    expect(decoded.file).toBe(key)
+    expect(decoded.mutator).toBe('mutator')
+  })
 })
 
 describe('keyForTests', () => {
@@ -281,6 +289,31 @@ describe('readMutantCache', () => {
     await fs.writeFile(path.join(tmpDir, '.mutineer-cache.json'), 'not json')
     const result = await readMutantCache(tmpDir)
     expect(result).toEqual({})
+  })
+
+  it('skips object-format entries without a status field', async () => {
+    const cache = {
+      'testsig:codesig:file.ts:1,0:flip': { someOtherField: 'foo' },
+    }
+    await fs.writeFile(
+      path.join(tmpDir, '.mutineer-cache.json'),
+      JSON.stringify(cache),
+    )
+    const result = await readMutantCache(tmpDir)
+    // Entry has no status, so it is skipped entirely
+    expect(result['testsig:codesig:file.ts:1,0:flip']).toBeUndefined()
+  })
+
+  it('defaults status to skipped when status is null in object entry', async () => {
+    const cache = {
+      'testsig:codesig:file.ts:1,0:flip': { status: null },
+    }
+    await fs.writeFile(
+      path.join(tmpDir, '.mutineer-cache.json'),
+      JSON.stringify(cache),
+    )
+    const result = await readMutantCache(tmpDir)
+    expect(result['testsig:codesig:file.ts:1,0:flip'].status).toBe('skipped')
   })
 
   it('normalizes partial object entries with decoded fallbacks', async () => {

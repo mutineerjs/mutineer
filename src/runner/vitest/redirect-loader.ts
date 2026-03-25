@@ -42,9 +42,10 @@ function tryResolveTsExtension(specifier: string, parentURL?: string | null) {
     return null
   }
 
+  if (!parentURL) return null
   let parentPath: string
   try {
-    parentPath = fileURLToPath(parentURL ?? '')
+    parentPath = fileURLToPath(parentURL)
   } catch {
     return null
   }
