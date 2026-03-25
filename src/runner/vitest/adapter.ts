@@ -22,6 +22,7 @@ import type {
 } from '../types.js'
 import { createLogger } from '../../utils/logger.js'
 import { stripMutineerArgs } from '../shared/index.js'
+import { toErrorMessage } from '../../utils/errors.js'
 
 const require = createRequire(import.meta.url)
 const log = createLogger('vitest-adapter')
@@ -226,7 +227,7 @@ export class VitestAdapter implements TestRunnerAdapter {
       return {
         status: 'error',
         durationMs: 0,
-        error: err instanceof Error ? err.message : String(err),
+        error: toErrorMessage(err),
       }
     }
   }

@@ -15,7 +15,6 @@
 import { spawn, ChildProcess } from 'node:child_process'
 import * as path from 'node:path'
 import * as readline from 'node:readline'
-import * as fs from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { EventEmitter } from 'node:events'
 import type {
@@ -23,8 +22,13 @@ import type {
   MutantRunResult,
   MutantRunSummary,
 } from '../../types/mutant.js'
-import { getActiveIdFilePath } from '../shared/index.js'
+import {
+  getActiveIdFilePath,
+  resolveWorkerScript,
+  type PendingTask,
+} from '../shared/index.js'
 import { createLogger, DEBUG } from '../../utils/logger.js'
+import { toErrorMessage } from '../../utils/errors.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -41,17 +45,11 @@ interface WorkerMessage {
   passingTests?: string[]
 }
 
-interface PendingTask {
-  resolve: (result: MutantRunSummary) => void
-  reject: (error: Error) => void
-  timeoutHandle: NodeJS.Timeout | null
-}
-
 class VitestWorker extends EventEmitter {
   readonly id: string
   private process: ChildProcess | null = null
   private rl: readline.Interface | null = null
-  private pendingTask: PendingTask | null = null
+  private pendingTask: PendingTask<MutantRunSummary> | null = null
   private ready = false
   private shuttingDown = false
 
@@ -66,23 +64,8 @@ class VitestWorker extends EventEmitter {
   }
 
   async start(): Promise<void> {
-    const workerJs = path.join(__dirname, 'worker.js')
-    const workerMts = path.join(__dirname, 'worker.mjs')
-    const workerTs = path.join(__dirname, 'worker.mts')
-    const workerScript = fs.existsSync(workerJs)
-      ? workerJs
-      : fs.existsSync(workerMts)
-        ? workerMts
-        : workerTs
-
-    const loaderJs = path.join(__dirname, 'redirect-loader.js')
-    const loaderMjs = path.join(__dirname, 'redirect-loader.mjs')
-    const loaderTs = path.join(__dirname, 'redirect-loader.ts')
-    const loaderScript = fs.existsSync(loaderJs)
-      ? loaderJs
-      : fs.existsSync(loaderMjs)
-        ? loaderMjs
-        : loaderTs
+    const workerScript = resolveWorkerScript(__dirname, 'worker')
+    const loaderScript = resolveWorkerScript(__dirname, 'redirect-loader')
 
     const env: NodeJS.ProcessEnv = {
       ...process.env,
@@ -516,7 +499,7 @@ export async function runWithPool(
     return {
       status: 'error',
       durationMs: 0,
-      error: err instanceof Error ? err.message : String(err),
+      error: toErrorMessage(err),
     }
   }
 }

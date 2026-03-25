@@ -19,3 +19,5 @@ export {
 export type { RedirectConfig } from './redirect-state.js'
 export { stripMutineerArgs } from './strip-mutineer-args.js'
 export type { StripMutineerArgsOptions } from './strip-mutineer-args.js'
+export { resolveWorkerScript } from './worker-script.js'
+export type { PendingTask } from './pending-task.js'

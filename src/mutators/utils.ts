@@ -331,43 +331,14 @@ export function buildParseContext(src: string): ParseContext {
 
 /**
  * Collect operator targets from a pre-built ParseContext.
- * Avoids re-parsing; use when processing multiple operators on the same source.
+ * Reads directly from preCollected targets; no additional traversal needed.
  */
 export function collectOperatorTargetsFromContext(
-  src: string,
+  _src: string,
   ctx: ParseContext,
   opValue: string,
 ): OperatorTarget[] {
-  const { ast, tokens, ignoreLines } = ctx
-  const out: OperatorTarget[] = []
-
-  traverse(ast, {
-    enter(p) {
-      if (!isBinaryOrLogical(p.node)) return
-      const n = p.node
-      if (n.operator !== opValue) return
-
-      const nodeStart = n.start!
-      const nodeEnd = n.end!
-      const tok = tokens.find(
-        (tk) =>
-          tk.start >= nodeStart && tk.end <= nodeEnd && tk.value === opValue,
-      )!
-      const line = tok.loc.start.line
-      if (ignoreLines.has(line)) return
-
-      const visualCol = getVisualColumn(src, tok.start)
-      out.push({
-        start: tok.start,
-        end: tok.end,
-        line,
-        col1: visualCol,
-        op: opValue,
-      })
-    },
-  })
-
-  return out
+  return ctx.preCollected.operatorTargets.get(opValue) ?? []
 }
 
 /**

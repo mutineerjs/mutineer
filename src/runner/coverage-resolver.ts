@@ -11,6 +11,7 @@ import {
 } from '../utils/coverage.js'
 import { isCoverageRequestedInArgs } from './vitest/index.js'
 import { createLogger } from '../utils/logger.js'
+import { toErrorMessage } from '../utils/errors.js'
 
 const log = createLogger('coverage-resolver')
 
@@ -131,7 +132,7 @@ export async function loadCoverageAfterBaseline(
       coverageData = await loadCoverageData(defaultCoveragePath, cwd)
       log.info(`Loaded coverage for ${coverageData.coveredLines.size} files`)
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
+      const msg = toErrorMessage(err)
       log.warn(`Warning: Could not load coverage data: ${msg}`)
       log.warn('Continuing without coverage filtering.')
     }

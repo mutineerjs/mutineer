@@ -22,6 +22,7 @@ import type {
 } from '../types.js'
 import { createLogger } from '../../utils/logger.js'
 import { JestRunCLI } from './worker-runtime.js'
+import { toErrorMessage } from '../../utils/errors.js'
 
 const require = createRequire(import.meta.url)
 const log = createLogger('jest-adapter')
@@ -134,10 +135,7 @@ export class JestAdapter implements TestRunnerAdapter {
       const { results } = await runCLI(cliOptions, [this.options.cwd])
       success = results.success
     } catch (err) {
-      log.debug(
-        'Failed to run Jest baseline: ' +
-          (err instanceof Error ? err.message : String(err)),
-      )
+      log.debug('Failed to run Jest baseline: ' + toErrorMessage(err))
     } finally {
       process.stdout.write = origStdoutWrite
       process.stderr.write = origStderrWrite
@@ -182,7 +180,7 @@ export class JestAdapter implements TestRunnerAdapter {
       return {
         status: 'error',
         durationMs: 0,
-        error: err instanceof Error ? err.message : String(err),
+        error: toErrorMessage(err),
       }
     }
   }

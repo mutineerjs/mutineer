@@ -4,6 +4,7 @@ import { pathToFileURL } from 'node:url'
 import type { MutineerConfig } from '../index.js'
 
 import { createLogger } from '../utils/logger.js'
+import { toErrorMessage } from '../utils/errors.js'
 
 // Constants
 const CONFIG_FILENAMES = [
@@ -87,8 +88,9 @@ export async function loadMutineerConfig(
 
     return loadedConfig as MutineerConfig
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
-    throw new Error(`Failed to load config from ${configFile}: ${message}`)
+    throw new Error(
+      `Failed to load config from ${configFile}: ${toErrorMessage(err)}`,
+    )
   }
 }
 
@@ -104,9 +106,8 @@ async function loadTypeScriptConfig(filePath: string): Promise<unknown> {
     const loaded = await loadConfigFromFile(VITE_CONFIG_OPTIONS, filePath)
     return loaded?.config ?? {}
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
     throw new Error(
-      `Cannot load TypeScript config. Ensure 'vite' is installed or rename to .js/.mjs:\n${message}`,
+      `Cannot load TypeScript config. Ensure 'vite' is installed or rename to .js/.mjs:\n${toErrorMessage(err)}`,
     )
   }
 }

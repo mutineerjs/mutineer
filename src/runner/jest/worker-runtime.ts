@@ -11,6 +11,7 @@ import {
   clearRedirect,
 } from '../shared/index.js'
 import { createLogger } from '../../utils/logger.js'
+import { toErrorMessage } from '../../utils/errors.js'
 
 const log = createLogger('jest-runtime')
 
@@ -126,7 +127,7 @@ export class JestWorkerRuntime {
       return {
         killed: true,
         durationMs: Date.now() - start,
-        error: err instanceof Error ? err.message : String(err),
+        error: toErrorMessage(err),
       }
     } finally {
       const mutantPath = getMutantFilePath(mutant.file, mutant.id)
