@@ -84,7 +84,7 @@ function buildVitestArgs(args: string[], mode: VitestArgsMode): string[] {
       result.push('--coverage.perTest=true')
     }
     // Disable coverage thresholds so baseline doesn't fail when a broader
-    // test set (e.g. from --changed-with-deps) lowers aggregate coverage
+    // test set (e.g. from --changed-with-imports) lowers aggregate coverage
     result.push(
       '--coverage.thresholds.lines=0',
       '--coverage.thresholds.functions=0',

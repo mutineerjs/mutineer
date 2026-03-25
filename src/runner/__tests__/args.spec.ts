@@ -199,12 +199,12 @@ describe('parseCliOptions', () => {
   it('parses --changed flag', () => {
     const opts = parseCliOptions(['--changed'], emptyCfg)
     expect(opts.wantsChanged).toBe(true)
-    expect(opts.wantsChangedWithDeps).toBe(false)
+    expect(opts.wantsChangedWithImports).toBe(false)
   })
 
-  it('parses --changed-with-deps flag', () => {
-    const opts = parseCliOptions(['--changed-with-deps'], emptyCfg)
-    expect(opts.wantsChangedWithDeps).toBe(true)
+  it('parses --changed-with-imports flag', () => {
+    const opts = parseCliOptions(['--changed-with-imports'], emptyCfg)
+    expect(opts.wantsChangedWithImports).toBe(true)
   })
 
   it('parses --full flag', () => {

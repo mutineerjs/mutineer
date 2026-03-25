@@ -24,7 +24,7 @@ Options (run):
   --runner <vitest|jest>    Test runner (default: vitest)
   --progress <bar|list|quiet>  Progress display (default: bar)
   --changed                 Mutate only git-changed files
-  --changed-with-deps       Mutate changed files + their local dependencies
+  --changed-with-imports    Mutate changed files + their local imports
   --full                    Mutate full codebase, skipping confirmation prompt
   --only-covered-lines      Mutate only lines covered by tests
   --per-test-coverage       Collect per-test coverage data
@@ -60,7 +60,7 @@ Warning: Running on the full codebase may take a while.
 
   [1] Continue (full codebase)
   [2] --changed          (git-changed files only)
-  [3] --changed-with-deps (changed + their local deps)
+  [3] --changed-with-imports (changed + their local imports)
   [4] Abort
 
 `
@@ -71,7 +71,7 @@ Warning: Running on the full codebase may take a while.
  */
 export async function confirmFullRun(args: string[]): Promise<string[]> {
   const isFullRun =
-    !args.includes('--changed') && !args.includes('--changed-with-deps')
+    !args.includes('--changed') && !args.includes('--changed-with-imports')
   if (!isFullRun || !process.stdin.isTTY || args.includes('--full')) return args
 
   process.stdout.write(FULL_RUN_WARNING)
@@ -93,7 +93,7 @@ export async function confirmFullRun(args: string[]): Promise<string[]> {
           resolve([...args, '--changed'])
         } else if (choice === '3') {
           rl.close()
-          resolve([...args, '--changed-with-deps'])
+          resolve([...args, '--changed-with-imports'])
         } else if (choice === '4') {
           rl.close()
           process.exit(0)

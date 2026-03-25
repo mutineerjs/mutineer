@@ -12,7 +12,7 @@ const COMMON_DROP_EXACT = new Set([
   '-m',
   '--mutate',
   '--changed',
-  '--changed-with-deps',
+  '--changed-with-imports',
   '--full',
   '--only-covered-lines',
   '--per-test-coverage',

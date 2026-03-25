@@ -17,8 +17,8 @@ describe('stripMutineerArgs', () => {
       expect(stripMutineerArgs(['--changed'])).toEqual([])
     })
 
-    it('drops --changed-with-deps', () => {
-      expect(stripMutineerArgs(['--changed-with-deps'])).toEqual([])
+    it('drops --changed-with-imports', () => {
+      expect(stripMutineerArgs(['--changed-with-imports'])).toEqual([])
     })
 
     it('drops --full', () => {
