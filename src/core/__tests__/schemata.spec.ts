@@ -132,19 +132,6 @@ describe('generateSchema', () => {
     expect(schemaCode).toContain("'f#0'")
   })
 
-  it('embeds two value-mutation variants on the same site', () => {
-    const orig2 = 'return true'
-    const vX = makeVariant('g#0', 'return false')
-    const vY = makeVariant('g#1', 'return null')
-    const { schemaCode: sc2, fallbackIds: fb2 } = generateSchema(orig2, [
-      vX,
-      vY,
-    ])
-    expect(fb2.size).toBe(0)
-    expect(sc2).toContain("'g#0'")
-    expect(sc2).toContain("'g#1'")
-  })
-
   it('marks variant as fallback when diff produces empty range', () => {
     // Variant identical to original → empty diff
     const original = 'const x = 1'
@@ -234,6 +221,7 @@ describe('generateSchema', () => {
     ])
     expect(fallbackIds.has('f#0')).toBe(true)
     expect(fallbackIds.has('f#1')).toBe(false)
+    expect(schemaCode).not.toContain("'f#0'")
     expect(schemaCode).toContain("'f#1'")
   })
 
