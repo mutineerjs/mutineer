@@ -11,7 +11,7 @@ describe('HELP_TEXT', () => {
     '--runner',
     '--progress',
     '--changed',
-    '--changed-with-deps',
+    '--changed-with-imports',
     '--full',
     '--only-covered-lines',
     '--per-test-coverage',
@@ -33,7 +33,7 @@ describe('HELP_TEXT', () => {
     expect(HELP_TEXT).toContain('clean')
   })
 
-  it('--changed-with-deps description mentions local dependencies', () => {
+  it('--changed-with-imports description mentions local dependencies', () => {
     expect(HELP_TEXT).toContain('local dependencies')
   })
 })
@@ -66,9 +66,9 @@ describe('confirmFullRun()', () => {
     expect(await confirmFullRun(args)).toBe(args)
   })
 
-  it('returns args unchanged when --changed-with-deps is present', async () => {
+  it('returns args unchanged when --changed-with-imports is present', async () => {
     mockTTY(true)
-    const args = ['--changed-with-deps']
+    const args = ['--changed-with-imports']
     expect(await confirmFullRun(args)).toBe(args)
   })
 
@@ -108,10 +108,10 @@ describe('confirmFullRun()', () => {
     expect(await confirmFullRun([])).toEqual(['--changed'])
   })
 
-  it('choice 3 appends --changed-with-deps', async () => {
+  it('choice 3 appends --changed-with-imports', async () => {
     mockTTY(true)
     mockReadline(['3'])
-    expect(await confirmFullRun([])).toEqual(['--changed-with-deps'])
+    expect(await confirmFullRun([])).toEqual(['--changed-with-imports'])
   })
 
   it('invalid input re-prompts, then accepts valid choice', async () => {

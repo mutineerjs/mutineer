@@ -235,8 +235,8 @@ describe('runOrchestrator discovery logging', () => {
   })
 })
 
-describe('runOrchestrator --changed-with-deps diagnostic', () => {
-  it('logs uncovered targets when wantsChangedWithDeps is true', async () => {
+describe('runOrchestrator --changed-with-imports diagnostic', () => {
+  it('logs uncovered targets when wantsChangedWithImports is true', async () => {
     const cfg: MutineerConfig = {}
     vi.mocked(loadMutineerConfig).mockResolvedValue(cfg)
 
@@ -249,16 +249,16 @@ describe('runOrchestrator --changed-with-deps diagnostic', () => {
     })
 
     const consoleSpy = vi.spyOn(console, 'log')
-    await runOrchestrator(['--changed-with-deps'], '/cwd')
+    await runOrchestrator(['--changed-with-imports'], '/cwd')
 
     expect(consoleSpy).toHaveBeenCalledWith(
       expect.stringContaining(
-        '1 target(s) from --changed-with-deps have no covering tests and will be skipped',
+        '1 target(s) from --changed-with-imports have no covering tests and will be skipped',
       ),
     )
   })
 
-  it('does not log when all changed-with-deps targets have covering tests', async () => {
+  it('does not log when all changed-with-imports targets have covering tests', async () => {
     const cfg: MutineerConfig = {}
     vi.mocked(loadMutineerConfig).mockResolvedValue(cfg)
 
@@ -273,7 +273,7 @@ describe('runOrchestrator --changed-with-deps diagnostic', () => {
     vi.mocked(mockAdapter.runBaseline).mockResolvedValue(true)
 
     const consoleSpy = vi.spyOn(console, 'log')
-    await runOrchestrator(['--changed-with-deps'], '/cwd')
+    await runOrchestrator(['--changed-with-imports'], '/cwd')
 
     const diagnosticCalls = consoleSpy.mock.calls.filter(
       ([msg]) =>
@@ -282,7 +282,7 @@ describe('runOrchestrator --changed-with-deps diagnostic', () => {
     expect(diagnosticCalls).toHaveLength(0)
   })
 
-  it('does not log diagnostic when wantsChangedWithDeps is false', async () => {
+  it('does not log diagnostic when wantsChangedWithImports is false', async () => {
     const cfg: MutineerConfig = {}
     vi.mocked(loadMutineerConfig).mockResolvedValue(cfg)
 

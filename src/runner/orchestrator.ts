@@ -88,8 +88,8 @@ export async function runOrchestrator(cliArgs: string[], cwd: string) {
 
   log.info(
     `Mutineer starting in ${
-      opts.wantsChangedWithDeps
-        ? 'changed files with dependencies'
+      opts.wantsChangedWithImports
+        ? 'changed files with imports'
         : opts.wantsChanged
           ? 'changed files only'
           : 'full'
@@ -99,12 +99,12 @@ export async function runOrchestrator(cliArgs: string[], cwd: string) {
 
   // 3. Enumerate changed files if requested
   const changedAbs =
-    opts.wantsChanged || opts.wantsChangedWithDeps
+    opts.wantsChanged || opts.wantsChangedWithImports
       ? new Set(
           listChangedFiles(cwd, {
-            includeDeps: opts.wantsChangedWithDeps,
+            includeDeps: opts.wantsChangedWithImports,
             baseRef: cfg.baseRef,
-            maxDepth: cfg.dependencyDepth,
+            maxDepth: cfg.importDepth,
           }),
         )
       : null
@@ -139,7 +139,7 @@ export async function runOrchestrator(cliArgs: string[], cwd: string) {
   }
   const baselineTests = Array.from(allTestFiles)
 
-  if (opts.wantsChangedWithDeps) {
+  if (opts.wantsChangedWithImports) {
     let uncoveredCount = 0
     for (const target of targets) {
       const absFile = normalizePath(
@@ -156,7 +156,7 @@ export async function runOrchestrator(cliArgs: string[], cwd: string) {
     }
     if (uncoveredCount > 0) {
       log.info(
-        `${uncoveredCount} target(s) from --changed-with-deps have no covering tests and will be skipped`,
+        `${uncoveredCount} target(s) from --changed-with-imports have no covering tests and will be skipped`,
       )
     }
   }

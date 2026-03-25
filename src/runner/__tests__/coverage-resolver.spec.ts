@@ -14,7 +14,7 @@ function makeOpts(overrides: Partial<ParsedCliOptions> = {}): ParsedCliOptions {
   return {
     configPath: undefined,
     wantsChanged: false,
-    wantsChangedWithDeps: false,
+    wantsChangedWithImports: false,
     wantsFull: false,
     wantsOnlyCoveredLines: false,
     wantsPerTestCoverage: false,

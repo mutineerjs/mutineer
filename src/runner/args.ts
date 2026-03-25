@@ -14,7 +14,7 @@ import type { MutineerConfig } from '../types/config.js'
 export interface ParsedCliOptions {
   readonly configPath: string | undefined
   readonly wantsChanged: boolean
-  readonly wantsChangedWithDeps: boolean
+  readonly wantsChangedWithImports: boolean
   readonly wantsFull: boolean
   readonly wantsOnlyCoveredLines: boolean
   readonly wantsPerTestCoverage: boolean
@@ -196,7 +196,7 @@ export function parseCliOptions(
 ): ParsedCliOptions {
   const configPath = readStringFlag(args, '--config', '-c')
   const wantsChanged = args.includes('--changed')
-  const wantsChangedWithDeps = args.includes('--changed-with-deps')
+  const wantsChangedWithImports = args.includes('--changed-with-imports')
   const wantsFull = args.includes('--full')
   const wantsOnlyCoveredLines =
     args.includes('--only-covered-lines') || cfg.onlyCoveredLines === true
@@ -247,7 +247,7 @@ export function parseCliOptions(
   return {
     configPath,
     wantsChanged,
-    wantsChangedWithDeps,
+    wantsChangedWithImports,
     wantsFull,
     wantsOnlyCoveredLines,
     wantsPerTestCoverage,

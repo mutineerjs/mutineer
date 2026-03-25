@@ -9,7 +9,7 @@
        === ~> !== · && ~> || · + ~> -
 ```
 
-Mutineer is a fast, targeted mutation testing framework for JavaScript and TypeScript. Mutineer introduces small code changes (mutations) into your source files and runs your existing tests to see if they catch the defect. If a test fails, the mutant is "killed" -- meaning your tests are doing their job. If all tests pass, the mutant "escaped" -- revealing a gap in your test coverage.
+Mutineer is a fast, targeted mutation testing framework for JavaScript and TypeScript. Mutineer introduces small code changes (mutations) into your source files and runs your existing tests to see if they catch the defect. If a test fails, the mutant is "killed" - meaning your tests are doing their job. If all tests pass, the mutant "escaped" - revealing a gap in your test coverage.
 
 Built for **Vitest** with first-class **Jest** support. Other test runners can be added via the adapter interface.
 
@@ -99,7 +99,7 @@ npm run mutineer
 | `--config`, `-c`          | Path to config file                                                                  | auto-detected |
 | `--concurrency <n>`       | Parallel workers (min 1)                                                             | CPUs - 1      |
 | `--changed`               | Only mutate files changed vs base branch                                             | --            |
-| `--changed-with-deps`     | Include dependents of changed files                                                  | --            |
+| `--changed-with-imports`  | Include local imports of changed files                                               | --            |
 | `--full`                  | Mutate full codebase, skipping confirmation prompt                                   | --            |
 | `--only-covered-lines`    | Skip mutations on uncovered lines                                                    | --            |
 | `--per-test-coverage`     | Run only tests that cover the mutated line                                           | --            |
@@ -176,31 +176,31 @@ export default defineMutineerConfig({
 
 Large repos can generate thousands of mutations. These strategies keep runs fast and incremental.
 
-When you run `mutineer run` without `--changed`, `--changed-with-deps`, or `--full` on an interactive terminal, mutineer warns you and lets you narrow scope before starting:
+When you run `mutineer run` without `--changed`, `--changed-with-imports`, or `--full` on an interactive terminal, mutineer warns you and lets you narrow scope before starting:
 
 ```
 Warning: Running on the full codebase may take a while.
 
   [1] Continue (full codebase)
   [2] --changed          (git-changed files only)
-  [3] --changed-with-deps (changed + their local deps)
+  [3] --changed-with-imports (changed + their local imports)
   [4] Abort
 ```
 
-### 1. PR-scoped runs (CI) — `--changed-with-deps`
+### 1. PR-scoped runs (CI) — `--changed-with-imports`
 
-Run only on files changed in the branch plus their direct dependents:
+Run only on files changed in the branch plus their local imports:
 
 ```bash
-mutineer run --changed-with-deps
+mutineer run --changed-with-imports
 ```
 
-- Tune the dependency graph depth with `dependencyDepth` in config (default: `1`)
+- Tune the import resolution depth with `importDepth` in config (default: `1`)
 - Add `--per-test-coverage` to only run tests that cover the mutated line
 - Recommended `package.json` script:
 
 ```json
-"mutineer:ci": "mutineer run --changed-with-deps --per-test-coverage"
+"mutineer:ci": "mutineer run --changed-with-imports --per-test-coverage"
 ```
 
 ### 2. Split configs by domain
@@ -220,7 +220,7 @@ Each config sets its own `source` glob and `minKillPercent`. Good for monorepos 
 - Combine for maximum focus:
 
 ```bash
-mutineer run --changed-with-deps --only-covered-lines --per-test-coverage
+mutineer run --changed-with-imports --only-covered-lines --per-test-coverage
 ```
 
 ## File Support
