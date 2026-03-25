@@ -49,12 +49,7 @@ export function poolMutineerPlugin(): PluginOption {
     },
     load(id) {
       const cleanId = id.split('?')[0]
-      let normalizedId: string
-      try {
-        normalizedId = path.resolve(cleanId)
-      } catch {
-        return null
-      }
+      const normalizedId = path.resolve(cleanId)
 
       // Redirect takes priority: fallback mutations use setRedirect + invalidateFile.
       // Must check redirect first so the schema file (which exists for this source)

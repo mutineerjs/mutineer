@@ -242,6 +242,18 @@ describe('pool-redirect-loader resolve', () => {
     expect(nextResolve).toHaveBeenCalled()
   })
 
+  it('returns null from tryResolveTsExtension when parentURL is absent', async () => {
+    const nextResolve = vi.fn().mockResolvedValue({
+      url: 'file:///fallback.js',
+      shortCircuit: false,
+    })
+
+    await poolResolve('./foo.js', {}, nextResolve as any)
+
+    // Falls through to nextResolve
+    expect(nextResolve).toHaveBeenCalled()
+  })
+
   it('falls through to nextResolve when neither .ts nor .tsx exists', async () => {
     const tmpDir = await fs.mkdtemp(
       path.join(os.tmpdir(), 'mutineer-pool-loader-'),
