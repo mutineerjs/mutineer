@@ -26,7 +26,7 @@ export interface MutineerConfig {
   readonly runner?: 'vitest' | 'jest'
   readonly vitestConfig?: string
   readonly jestConfig?: string
-  /** Max depth for dependency resolution with --changed-with-imports (default: 1) */
+  /** Max depth for import resolution with --changed-with-imports (default: 1) */
   readonly importDepth?: number
   /** Path to coverage JSON file (Istanbul format, e.g., coverage/coverage-final.json) */
   readonly coverageFile?: string

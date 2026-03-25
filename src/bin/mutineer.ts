@@ -24,7 +24,7 @@ Options (run):
   --runner <vitest|jest>    Test runner (default: vitest)
   --progress <bar|list|quiet>  Progress display (default: bar)
   --changed                 Mutate only git-changed files
-  --changed-with-imports    Mutate changed files + their local dependencies
+  --changed-with-imports    Mutate changed files + their local imports
   --full                    Mutate full codebase, skipping confirmation prompt
   --only-covered-lines      Mutate only lines covered by tests
   --per-test-coverage       Collect per-test coverage data

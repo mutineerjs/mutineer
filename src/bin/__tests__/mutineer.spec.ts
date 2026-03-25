@@ -33,8 +33,8 @@ describe('HELP_TEXT', () => {
     expect(HELP_TEXT).toContain('clean')
   })
 
-  it('--changed-with-imports description mentions local dependencies', () => {
-    expect(HELP_TEXT).toContain('local dependencies')
+  it('--changed-with-imports description mentions local imports', () => {
+    expect(HELP_TEXT).toContain('local imports')
   })
 })
 
