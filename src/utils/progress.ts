@@ -1,3 +1,4 @@
+import sliceAnsi from 'slice-ansi'
 import chalk from 'chalk'
 import type { MutantStatus } from '../types/mutant.js'
 
@@ -85,7 +86,7 @@ export class Progress {
       `skipped=${this.skipped}`
 
     const barWidth = Math.max(
-      10,
+      0,
       cols - prefix.length - suffix.length - stats.length - 1,
     )
     const filled = Math.round(ratio * barWidth)
@@ -105,6 +106,6 @@ export class Progress {
       ' ' +
       chalk.dim(`skipped=${this.skipped}`)
 
-    this.stream.write('\r\x1b[2K' + line)
+    this.stream.write('\r\x1b[2K' + sliceAnsi(line, 0, cols))
   }
 }
