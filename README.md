@@ -50,6 +50,16 @@ Mutations are applied using Babel AST analysis, so operators inside strings and 
 |              | `returnEmptyStr`    | `return s` &rarr; `return ''`        |
 |              | `returnEmptyArr`    | `return [...]` &rarr; `return []`    |
 
+## Supported Vue Mutations (WIP)
+
+| Category            | Mutator           | Transformation                                      |
+| ------------------- | ----------------- | --------------------------------------------------- |
+| Composition API     | `refToShallowRef` | `ref(...)` &rarr; `shallowRef(...)`                 |
+|                     | `computedToRef`   | `computed(...)` &rarr; `ref(...)`                   |
+| Template directives | `vIfNegate`       | `v-if="expr"` &rarr; `v-if="!(expr)"`               |
+|                     | `vShowNegate`     | `v-show="expr"` &rarr; `v-show="!(expr)"`           |
+|                     | `vBindNegate`     | `v-bind:prop="expr"` &rarr; `v-bind:prop="!(expr)"` |
+
 ## Installation
 
 ```bash
