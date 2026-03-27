@@ -46,6 +46,22 @@ import {
 
 const log = createLogger('orchestrator')
 
+/**
+ * Returns the character range of the top-level `<template>` block in a Vue SFC,
+ * or undefined if none is found. Used to force Vue template mutations onto the
+ * redirect path, since globalThis is not accessible in compiled template expressions.
+ */
+export function findVueTemplateBounds(
+  code: string,
+): [{ start: number; end: number }] | undefined {
+  const startIdx = code.indexOf('<template')
+  if (startIdx === -1) return undefined
+  const endTag = '</template>'
+  const endIdx = code.lastIndexOf(endTag)
+  if (endIdx === -1 || endIdx < startIdx) return undefined
+  return [{ start: startIdx, end: endIdx + endTag.length }]
+}
+
 // Per-mutant test timeout (ms). Can be overridden with env MUTINEER_MUTANT_TIMEOUT_MS
 export function parseMutantTimeoutMs(raw: string | undefined): number {
   const n = raw ? Number(raw) : NaN
@@ -302,9 +318,16 @@ export async function runOrchestrator(cliArgs: string[], cwd: string) {
         const originalCode = await fs.promises.readFile(file, 'utf8')
         const schemaPath = getSchemaFilePath(file)
         await fs.promises.mkdir(path.dirname(schemaPath), { recursive: true })
+        // For Vue SFCs, template-section mutations must use the redirect path:
+        // globalThis.__mutineer_active_id__ is not accessible in compiled Vue
+        // template expressions, so the schema ternary never activates there.
+        const fallbackRanges = file.endsWith('.vue')
+          ? findVueTemplateBounds(originalCode)
+          : undefined
         const { schemaCode, fallbackIds: fileFallbacks } = generateSchema(
           originalCode,
           fileVariants,
+          fallbackRanges,
         )
         await fs.promises.writeFile(schemaPath, schemaCode, 'utf8')
         return fileFallbacks

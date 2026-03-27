@@ -40,6 +40,7 @@ import {
   returnEmptyStr,
   returnEmptyArr,
 } from './return-value.js'
+import { refToShallowRef, computedToRef } from './vue-composition.js'
 
 const ALL: ASTMutator[] = [
   relaxLE,
@@ -73,6 +74,8 @@ const ALL: ASTMutator[] = [
   returnZero,
   returnEmptyStr,
   returnEmptyArr,
+  refToShallowRef,
+  computedToRef,
 ]
 
 /**

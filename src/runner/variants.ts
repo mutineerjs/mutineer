@@ -10,7 +10,7 @@ import path from 'node:path'
 import type { MutateTarget, MutineerConfig } from '../types/config.js'
 import type { MutationVariant } from '../core/types.js'
 import type { MutantPayload, Variant } from '../types/mutant.js'
-import { mutateVueSfcScriptSetup } from '../core/sfc.js'
+import { mutateVueSfcScriptSetup, mutateVueSfcTemplate } from '../core/sfc.js'
 import { mutateModuleSource } from '../core/module.js'
 import { normalizePath } from '../utils/normalizePath.js'
 import { isLineCovered, type CoverageData } from '../utils/coverage.js'
@@ -51,10 +51,24 @@ export async function enumerateVariantsForTarget(
     const kind =
       explicitKind ?? (abs.endsWith('.vue') ? 'vue:script-setup' : 'module')
 
-    const list: readonly MutationVariant[] =
-      kind === 'vue:script-setup'
-        ? await mutateVueSfcScriptSetup(abs, code, includeArr, excludeArr, max)
-        : mutateModuleSource(code, includeArr, excludeArr, max)
+    let list: readonly MutationVariant[]
+    if (kind === 'vue:script-setup') {
+      const [scriptVariants, templateVariants] = await Promise.all([
+        mutateVueSfcScriptSetup(abs, code, includeArr, excludeArr, max),
+        mutateVueSfcTemplate(abs, code, includeArr, excludeArr, max),
+      ])
+      const seenCodes = new Set(scriptVariants.map((v) => v.code))
+      const merged: MutationVariant[] = [...scriptVariants]
+      for (const v of templateVariants) {
+        if (!seenCodes.has(v.code)) {
+          seenCodes.add(v.code)
+          merged.push(v)
+        }
+      }
+      list = max !== undefined ? merged.slice(0, max) : merged
+    } else {
+      list = mutateModuleSource(code, includeArr, excludeArr, max)
+    }
 
     return list.map((v, i) => ({
       id: `${path.basename(abs)}#${i}`,

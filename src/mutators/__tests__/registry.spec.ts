@@ -33,6 +33,8 @@ const ALL_NAMES = [
   'returnZero',
   'returnEmptyStr',
   'returnEmptyArr',
+  'refToShallowRef',
+  'computedToRef',
 ] as const
 
 describe('mutator registry', () => {

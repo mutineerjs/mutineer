@@ -161,6 +161,7 @@ function findSmallestEnclosingExpression(
 export function generateSchema(
   originalCode: string,
   variants: readonly Variant[],
+  fallbackRanges?: readonly { readonly start: number; readonly end: number }[],
 ): SchemaResult {
   const fallbackIds = new Set<string>()
   const siteMap = new Map<string, Site>()
@@ -180,6 +181,16 @@ export function generateSchema(
 
     // Skip variants with empty diffs (identical to original)
     if (origStart >= origEnd && origStart >= mutEnd) {
+      fallbackIds.add(variant.id)
+      continue
+    }
+
+    // If the diff site falls within a caller-specified fallback range, use the
+    // redirect path instead. This is needed for e.g. Vue template sections where
+    // globalThis.__mutineer_active_id__ is not accessible in template expressions.
+    if (
+      fallbackRanges?.some((r) => origStart >= r.start && origStart < r.end)
+    ) {
       fallbackIds.add(variant.id)
       continue
     }

@@ -75,7 +75,11 @@ vi.mock('../../core/schemata.js', () => ({
     fallbackIds: new Set(),
   }),
 }))
-import { runOrchestrator, parseMutantTimeoutMs } from '../orchestrator.js'
+import {
+  runOrchestrator,
+  parseMutantTimeoutMs,
+  findVueTemplateBounds,
+} from '../orchestrator.js'
 import { loadMutineerConfig } from '../config.js'
 import { createVitestAdapter, type VitestAdapter } from '../vitest/index.js'
 import { createJestAdapter } from '../jest/index.js'
@@ -137,6 +141,28 @@ describe('parseMutantTimeoutMs', () => {
 
   it('returns 30_000 for non-numeric strings', () => {
     expect(parseMutantTimeoutMs('abc')).toBe(30_000)
+  })
+})
+
+describe('findVueTemplateBounds', () => {
+  it('returns the bounds of the top-level template block', () => {
+    const sfc = '<template>\n  <div />\n</template>\n<script setup>\n</script>'
+    const bounds = findVueTemplateBounds(sfc)
+    expect(bounds).toBeDefined()
+    expect(bounds![0].start).toBe(0)
+    expect(bounds![0].end).toBe('<template>\n  <div />\n</template>'.length)
+  })
+
+  it('returns undefined when no template section is present', () => {
+    expect(
+      findVueTemplateBounds('<script setup>\nconst x = 1\n</script>'),
+    ).toBeUndefined()
+  })
+
+  it('uses lastIndexOf for end so nested template tags are included', () => {
+    const sfc = '<template>\n  <template v-if="x" />\n</template>'
+    const bounds = findVueTemplateBounds(sfc)
+    expect(bounds![0].end).toBe(sfc.length)
   })
 })
 
@@ -592,7 +618,11 @@ describe('runOrchestrator schema generation', () => {
 
     await runOrchestrator([], tmpDir)
 
-    expect(generateSchema).toHaveBeenCalledWith(expect.any(String), [variant])
+    expect(generateSchema).toHaveBeenCalledWith(
+      expect.any(String),
+      [variant],
+      undefined,
+    )
     const call = vi.mocked(executePool).mock.calls[0][0]
     expect(call.fallbackIds).toStrictEqual(mockFallbacks)
   })
