@@ -6,6 +6,20 @@ import fssync from 'node:fs'
 import { normalizePath } from '../../utils/normalizePath.js'
 import { autoDiscoverTargetsAndTests } from '../discover.js'
 
+// Mock node:module's createRequire so that resolve('@vitejs/plugin-vue') returns
+// the bare specifier rather than an absolute path. This lets vi.doMock stubs for
+// '@vitejs/plugin-vue' continue to intercept the dynamic import after the discover
+// code switched to resolving the package path from the user's project root.
+vi.mock('node:module', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:module')>()
+  return {
+    ...actual,
+    createRequire: (_filename: string | URL) => ({
+      resolve: (id: string) => id,
+    }),
+  }
+})
+
 // Mock Vite server creation to avoid opening a real port during tests
 vi.mock('vite', async () => {
   const actual = await vi.importActual<typeof import('vite')>('vite')
