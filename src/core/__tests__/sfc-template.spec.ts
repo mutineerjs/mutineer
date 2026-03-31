@@ -33,6 +33,10 @@ vi.mock('@vue/compiler-dom', async (importOriginal) => {
   return importOriginal<typeof import('@vue/compiler-dom')>()
 })
 
+vi.mock('../../mutators/vue-template.js', async (importOriginal) => {
+  return importOriginal<typeof import('../../mutators/vue-template.js')>()
+})
+
 const wrapInSfc = (template: string) =>
   `<template>${template}</template>\n<script setup>\nconst x = 1\n</script>`
 
@@ -183,9 +187,15 @@ describe('mutateVueSfcTemplate', () => {
   })
 
   it('deduplicates identical mutations', async () => {
+    const vueTemplate = await import('../../mutators/vue-template.js')
+    const spy = vi.spyOn(vueTemplate, 'collectTemplateDirectiveMutations')
+    const duplicate = { line: 1, col: 1, code: '<div v-if="!(x)"></div>' }
+    spy.mockResolvedValue([duplicate, duplicate])
+
     const code = wrapInSfc('<div v-if="x"></div>')
-    const results = await mutateVueSfcTemplate('test.vue', code)
-    const codes = results.map((r) => r.code)
-    expect(new Set(codes).size).toBe(codes.length)
+    const results = await mutateVueSfcTemplate('test.vue', code, ['vIfNegate'])
+
+    expect(results).toHaveLength(1)
+    spy.mockRestore()
   })
 })
