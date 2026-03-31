@@ -124,6 +124,8 @@ export async function mutateVueSfcTemplate(
   const mutationsByName: Array<{ name: string; mutations: MutationOutput[] }> =
     []
 
+  console.log('Active template mutators:', activeNames.join(', '))
+
   if (activeNames.includes('vIfNegate')) {
     mutationsByName.push({
       name: 'vIfNegate',
