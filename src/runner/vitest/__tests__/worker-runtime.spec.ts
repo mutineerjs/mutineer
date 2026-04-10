@@ -300,7 +300,9 @@ describe('VitestWorkerRuntime', () => {
 
       const setupFile = path.join(tmp, '__mutineer__', 'setup.mjs')
       expect(fs.existsSync(setupFile)).toBe(true)
-      expect(fs.readFileSync(setupFile, 'utf8')).toContain('beforeAll')
+      expect(fs.readFileSync(setupFile, 'utf8')).toContain(
+        '__mutineer_active_id__',
+      )
       await runtime.shutdown()
     } finally {
       if (origEnv === undefined) {
@@ -337,8 +339,9 @@ describe('VitestWorkerRuntime', () => {
         [path.join(tmp, 'test.ts')],
       )
 
-      // invalidateFile should NOT be called for schema path
-      expect(invalidateFn).not.toHaveBeenCalled()
+      // invalidateFile should be called with setup.mjs path to force re-import per vm context
+      const setupFile = path.join(tmp, '__mutineer__', 'setup.mjs')
+      expect(invalidateFn).toHaveBeenCalledWith(setupFile)
       // Active ID file should be cleared after run
       expect(fs.readFileSync(activeIdFile, 'utf8')).toBe('')
       await runtime.shutdown()
@@ -377,6 +380,79 @@ describe('VitestWorkerRuntime', () => {
 
       // invalidateFile SHOULD be called for fallback path
       expect(invalidateFn).toHaveBeenCalledWith(path.join(tmp, 'src.ts'))
+      await runtime.shutdown()
+    } finally {
+      if (origEnv === undefined) {
+        delete process.env.MUTINEER_ACTIVE_ID_FILE
+      } else {
+        process.env.MUTINEER_ACTIVE_ID_FILE = origEnv
+      }
+    }
+  })
+
+  it('adds setup.mjs and source file to watcher.invalidates for schema path; adds source file for fallback path', async () => {
+    const { createVitest } = await import('vitest/node')
+    const invalidates = new Set<string>()
+    vi.mocked(createVitest).mockResolvedValueOnce({
+      init: initFn,
+      close: closeFn,
+      runTestSpecifications: runSpecsFn,
+      invalidateFile: invalidateFn,
+      getProjectByName: getProjectByNameFn,
+      watcher: { invalidates },
+    } as any)
+
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'mutineer-worker-winv-'))
+    tmpFiles.push(tmp)
+    const activeIdFile = path.join(tmp, '__mutineer__', 'active_id_winv.txt')
+    const origEnv = process.env.MUTINEER_ACTIVE_ID_FILE
+    process.env.MUTINEER_ACTIVE_ID_FILE = activeIdFile
+
+    try {
+      const runtime = createVitestWorkerRuntime({
+        workerId: 'w-winv',
+        cwd: tmp,
+      })
+      await runtime.init()
+
+      const mutantFile = path.join(tmp, 'src.ts')
+      const setupFile = path.join(tmp, '__mutineer__', 'setup.mjs')
+
+      // Schema path: both setup.mjs AND source file must be in watcher.invalidates
+      // so the fork re-fetches schema content (with ternary chains) rather than
+      // reusing the baseline-cached original code.
+      await runtime.run(
+        {
+          id: 'mut#winv-schema',
+          name: 'm',
+          file: mutantFile,
+          code: 'export const x=1',
+          line: 1,
+          col: 1,
+          isFallback: false,
+        },
+        [path.join(tmp, 'test.ts')],
+      )
+      expect(invalidates.has(path.resolve(setupFile))).toBe(true)
+      expect(invalidates.has(path.resolve(mutantFile))).toBe(true)
+
+      // Fallback path: source file in watcher.invalidates
+      invalidates.clear()
+      await runtime.run(
+        {
+          id: 'mut#winv-fallback',
+          name: 'm',
+          file: mutantFile,
+          code: 'export const x=0',
+          line: 1,
+          col: 1,
+          isFallback: true,
+        },
+        [path.join(tmp, 'test.ts')],
+      )
+      expect(invalidates.has(path.resolve(mutantFile))).toBe(true)
+      expect(invalidates.has(path.resolve(setupFile))).toBe(false)
+
       await runtime.shutdown()
     } finally {
       if (origEnv === undefined) {
@@ -444,6 +520,206 @@ describe('VitestWorkerRuntime', () => {
     ])
 
     expect(clearFn).toHaveBeenCalledTimes(2)
+    await runtime.shutdown()
+  })
+
+  it('calls vite:vue handleHotUpdate to clear SFC descriptor cache for Vue fallback mutations', async () => {
+    const { createVitest } = await import('vitest/node')
+    const handleHotUpdate = vi.fn().mockResolvedValue([])
+
+    vi.mocked(createVitest).mockResolvedValueOnce({
+      init: initFn,
+      close: closeFn,
+      runTestSpecifications: runSpecsFn,
+      invalidateFile: invalidateFn,
+      getProjectByName: getProjectByNameFn,
+      projects: [
+        {
+          _vite: {
+            config: { plugins: [{ name: 'vite:vue', handleHotUpdate }] },
+            moduleGraph: { getModulesByFile: () => [] },
+          },
+        },
+      ],
+    } as any)
+
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'mutineer-worker-vue-'))
+    tmpFiles.push(tmp)
+    const vueFile = path.join(tmp, 'Counter.vue')
+    const runtime = createVitestWorkerRuntime({ workerId: 'w-vue', cwd: tmp })
+    await runtime.init()
+
+    const mutantCode = '<template><div>mutant</div></template>'
+    await runtime.run(
+      {
+        id: 'mut#vue',
+        name: 'm',
+        file: vueFile,
+        code: mutantCode,
+        line: 1,
+        col: 1,
+        isFallback: true,
+      },
+      [path.join(tmp, 'test.ts')],
+    )
+
+    expect(handleHotUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ file: path.resolve(vueFile) }),
+    )
+    const ctx = handleHotUpdate.mock.calls[0][0]
+    await expect(ctx.read()).resolves.toBe(mutantCode)
+    await runtime.shutdown()
+  })
+
+  it('adds Vue sub-module IDs to watcher.invalidates for fallback Vue mutations', async () => {
+    const { createVitest } = await import('vitest/node')
+    const invalidates = new Set<string>()
+    const handleHotUpdate = vi.fn().mockResolvedValue([])
+
+    const tmp = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'mutineer-worker-vuesub-'),
+    )
+    tmpFiles.push(tmp)
+    const vueFile = path.join(tmp, 'Counter.vue')
+    const resolvedVue = path.resolve(vueFile)
+    const subModuleId = `${resolvedVue}?type=template&v=abc`
+
+    vi.mocked(createVitest).mockResolvedValueOnce({
+      init: initFn,
+      close: closeFn,
+      runTestSpecifications: runSpecsFn,
+      invalidateFile: invalidateFn,
+      getProjectByName: getProjectByNameFn,
+      watcher: { invalidates },
+      projects: [
+        {
+          _vite: {
+            config: { plugins: [{ name: 'vite:vue', handleHotUpdate }] },
+            moduleGraph: {
+              getModulesByFile: (f: string) =>
+                f === resolvedVue
+                  ? [{ id: resolvedVue }, { id: subModuleId }]
+                  : [],
+            },
+          },
+        },
+      ],
+    } as any)
+
+    const runtime = createVitestWorkerRuntime({
+      workerId: 'w-vuesub',
+      cwd: tmp,
+    })
+    await runtime.init()
+
+    await runtime.run(
+      {
+        id: 'mut#vuesub',
+        name: 'm',
+        file: vueFile,
+        code: '<template><div>mutant</div></template>',
+        line: 1,
+        col: 1,
+        isFallback: true,
+      },
+      [path.join(tmp, 'test.ts')],
+    )
+
+    // Sub-module ID should be in watcher.invalidates; root module ID should not be added twice
+    expect(invalidates.has(subModuleId)).toBe(true)
+    expect(invalidates.has(resolvedVue)).toBe(true) // already added by main fallback path
+    await runtime.shutdown()
+  })
+
+  it('does not call vite:vue handleHotUpdate for non-Vue fallback mutations', async () => {
+    const { createVitest } = await import('vitest/node')
+    const handleHotUpdate = vi.fn().mockResolvedValue([])
+
+    vi.mocked(createVitest).mockResolvedValueOnce({
+      init: initFn,
+      close: closeFn,
+      runTestSpecifications: runSpecsFn,
+      invalidateFile: invalidateFn,
+      getProjectByName: getProjectByNameFn,
+      projects: [
+        {
+          _vite: {
+            config: { plugins: [{ name: 'vite:vue', handleHotUpdate }] },
+            moduleGraph: { getModulesByFile: () => [] },
+          },
+        },
+      ],
+    } as any)
+
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'mutineer-worker-ts2-'))
+    tmpFiles.push(tmp)
+    const runtime = createVitestWorkerRuntime({ workerId: 'w-ts2', cwd: tmp })
+    await runtime.init()
+
+    await runtime.run(
+      {
+        id: 'mut#ts2',
+        name: 'm',
+        file: path.join(tmp, 'src.ts'),
+        code: 'export const x=1',
+        line: 1,
+        col: 1,
+        isFallback: true,
+      },
+      [path.join(tmp, 'test.ts')],
+    )
+
+    expect(handleHotUpdate).not.toHaveBeenCalled()
+    await runtime.shutdown()
+  })
+
+  it('clears fetchCaches and fetchCache entries for the mutant file before each run', async () => {
+    const { createVitest } = await import('vitest/node')
+    const ssrCache = new Map<string, unknown>()
+    const webCache = new Map<string, unknown>()
+    const fetchCache = new Map<string, unknown>()
+    const mutantFile = path.join(os.tmpdir(), 'fc-src.ts')
+    ssrCache.set(mutantFile, { timestamp: 1, result: 'stale' })
+    webCache.set(mutantFile, { timestamp: 1, result: 'stale' })
+    fetchCache.set(mutantFile, { timestamp: 1, result: 'stale' })
+
+    vi.mocked(createVitest).mockResolvedValueOnce({
+      init: initFn,
+      close: closeFn,
+      runTestSpecifications: runSpecsFn,
+      invalidateFile: invalidateFn,
+      getProjectByName: getProjectByNameFn,
+      projects: [
+        {
+          vitenode: {
+            fetchCaches: { ssr: ssrCache, web: webCache },
+            fetchCache,
+          },
+        },
+      ],
+    } as any)
+
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'mutineer-worker-fc-'))
+    tmpFiles.push(tmp)
+    const runtime = createVitestWorkerRuntime({ workerId: 'w-fc', cwd: tmp })
+    await runtime.init()
+
+    await runtime.run(
+      {
+        id: 'mut#fc',
+        name: 'm',
+        file: mutantFile,
+        code: 'export const x=1',
+        line: 1,
+        col: 1,
+      },
+      [path.join(tmp, 'test.ts')],
+    )
+
+    const resolvedFile = path.resolve(mutantFile)
+    expect(ssrCache.has(resolvedFile)).toBe(false)
+    expect(webCache.has(resolvedFile)).toBe(false)
+    expect(fetchCache.has(resolvedFile)).toBe(false)
     await runtime.shutdown()
   })
 })

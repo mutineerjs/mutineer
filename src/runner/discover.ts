@@ -124,9 +124,9 @@ async function createViteResolver(
     })
     if (vueFiles.length > 0) {
       try {
-        const mod = await import(
-          /* @vite-ignore */ '@vitejs/plugin-vue' as string
-        )
+        const req = createRequire(path.join(rootAbs, 'package.json'))
+        const vuePkgPath = req.resolve('@vitejs/plugin-vue')
+        const mod = await import(/* @vite-ignore */ vuePkgPath as string)
         const vue = (mod as { default?: unknown }).default ?? mod
         plugins =
           typeof vue === 'function' ? [(vue as () => PluginOption)()] : []

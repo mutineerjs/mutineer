@@ -247,4 +247,52 @@ describe('generateSchema', () => {
     expect(fallbackIds.has('f#0')).toBe(true)
     expect(fallbackIds.has('f#1')).toBe(true)
   })
+
+  describe('fallbackRanges', () => {
+    it('marks mutations whose diff start falls within a fallback range as fallback', () => {
+      // 'before\n' = 7 chars; 'middle' occupies [7, 13)
+      const original = 'before\nmiddle\nafter'
+      const v = makeVariant('f#0', 'before\nMIDDLE\nafter') // diff at offset 7
+      const { schemaCode, fallbackIds } = generateSchema(
+        original,
+        [v],
+        [{ start: 7, end: 13 }],
+      )
+      expect(fallbackIds.has('f#0')).toBe(true)
+      expect(schemaCode).not.toContain("'f#0'")
+      expect(schemaCode).not.toContain('__mutineer_active_id__')
+    })
+
+    it('embeds mutations whose diff start falls outside all fallback ranges', () => {
+      // 'before\n' = 7 chars; mutation changes 'b' at offset 0
+      const original = 'before\nmiddle\nafter'
+      const v = makeVariant('f#0', 'BEFORE\nmiddle\nafter') // diff at offset 0
+      const { schemaCode, fallbackIds } = generateSchema(
+        original,
+        [v],
+        [{ start: 7, end: 13 }],
+      )
+      expect(fallbackIds.has('f#0')).toBe(false)
+      expect(schemaCode).toContain("'f#0'")
+    })
+
+    it('treats fallback range end as exclusive', () => {
+      // 'before\nmiddle' = 13 chars; mutation at offset 13 (\n) is outside [7,13)
+      const original = 'before\nmiddle\nafter'
+      const v = makeVariant('f#0', 'before\nmiddle\nAFTER') // diff at offset 14 (\nafter → \nAFTER)
+      const { fallbackIds } = generateSchema(
+        original,
+        [v],
+        [{ start: 7, end: 13 }],
+      )
+      expect(fallbackIds.has('f#0')).toBe(false)
+    })
+
+    it('ignores fallbackRanges when undefined', () => {
+      const original = 'before\nmiddle\nafter'
+      const v = makeVariant('f#0', 'before\nMIDDLE\nafter')
+      const { fallbackIds } = generateSchema(original, [v])
+      expect(fallbackIds.has('f#0')).toBe(false)
+    })
+  })
 })

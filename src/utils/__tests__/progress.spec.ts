@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import stripAnsi from 'strip-ansi'
 import { Progress } from '../progress.js'
 
 describe('Progress', () => {
@@ -177,6 +178,50 @@ describe('Progress', () => {
       // Should not throw; bar rendered with 80 column fallback
       expect(writeSpy).toHaveBeenCalled()
       progress.finish()
+    } finally {
+      Object.defineProperty(process, 'stderr', {
+        value: origStderr,
+        writable: true,
+        configurable: true,
+      })
+    }
+  })
+
+  it('never writes a line wider than the terminal on very narrow columns', () => {
+    const writeSpy = vi.fn()
+    const cols = 30
+    const fakeStream = {
+      isTTY: true,
+      write: writeSpy,
+      columns: cols,
+    }
+
+    const origStderr = process.stderr
+    Object.defineProperty(process, 'stderr', {
+      value: fakeStream,
+      writable: true,
+      configurable: true,
+    })
+
+    try {
+      vi.spyOn(console, 'log').mockImplementation(() => {})
+      const progress = new Progress(10, { mode: 'bar' })
+
+      progress.start()
+      progress.update('killed')
+      progress.update('escaped')
+      progress.update('error')
+      progress.finish()
+
+      const barWrites = writeSpy.mock.calls
+        .map((c: string[]) => c[0] as string)
+        .filter((s) => s.startsWith('\r\x1b[2K'))
+        .map((s) => s.slice('\r\x1b[2K'.length))
+
+      expect(barWrites.length).toBeGreaterThan(0)
+      for (const written of barWrites) {
+        expect(stripAnsi(written).length).toBeLessThanOrEqual(cols)
+      }
     } finally {
       Object.defineProperty(process, 'stderr', {
         value: origStderr,

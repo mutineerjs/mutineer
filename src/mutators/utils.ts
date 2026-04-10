@@ -169,6 +169,18 @@ export interface ReturnStatementInfo {
 }
 
 /**
+ * Location info for a CallExpression callee identifier, pre-collected
+ * during a single AST traversal so call mutators need no traversal.
+ */
+export interface CallTarget {
+  readonly start: number
+  readonly end: number
+  readonly line: number
+  readonly col1: number
+  readonly callee: string
+}
+
+/**
  * All mutation targets pre-collected in a single traversal.
  */
 export interface PreCollected {
@@ -176,6 +188,7 @@ export interface PreCollected {
   readonly returnStatements: ReturnStatementInfo[]
   readonly updateTargets: Map<string, OperatorTarget[]>
   readonly assignmentTargets: Map<string, OperatorTarget[]>
+  readonly callTargets: Map<string, CallTarget[]>
 }
 
 /**
@@ -203,6 +216,7 @@ export function collectAllTargets(
   const returnStatements: ReturnStatementInfo[] = []
   const updateTargets = new Map<string, OperatorTarget[]>()
   const assignmentTargets = new Map<string, OperatorTarget[]>()
+  const callTargets = new Map<string, CallTarget[]>()
 
   function handleBinaryOrLogical(n: t.BinaryExpression | t.LogicalExpression) {
     const nodeStart = n.start!
@@ -255,6 +269,27 @@ export function collectAllTargets(
     })
   }
 
+  function handleCallExpression(n: t.CallExpression) {
+    if (!t.isIdentifier(n.callee)) return
+    const callee = n.callee
+    if (callee.start == null || !callee.loc) return
+    const line = callee.loc.start.line
+    if (ignoreLines.has(line)) return
+    const visualCol = getVisualColumn(src, callee.start)
+    let arr = callTargets.get(callee.name)
+    if (!arr) {
+      arr = []
+      callTargets.set(callee.name, arr)
+    }
+    arr.push({
+      start: callee.start,
+      end: callee.end!,
+      line,
+      col1: visualCol,
+      callee: callee.name,
+    })
+  }
+
   function handleAssignment(n: t.AssignmentExpression) {
     const nodeStart = n.start!
     const nodeEnd = n.end!
@@ -293,6 +328,9 @@ export function collectAllTargets(
     AssignmentExpression(p) {
       handleAssignment(p.node)
     },
+    CallExpression(p) {
+      handleCallExpression(p.node)
+    },
     ReturnStatement(p) {
       const node = p.node
       if (!node.argument) return
@@ -311,7 +349,13 @@ export function collectAllTargets(
     },
   })
 
-  return { operatorTargets, returnStatements, updateTargets, assignmentTargets }
+  return {
+    operatorTargets,
+    returnStatements,
+    updateTargets,
+    assignmentTargets,
+    callTargets,
+  }
 }
 
 /**
