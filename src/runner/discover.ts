@@ -70,30 +70,45 @@ function extractImportSpecs(code: string): string[] {
   return out
 }
 
+type CompiledExcludePattern =
+  | { readonly kind: 'prefix'; readonly prefix: string }
+  | { readonly kind: 'regex'; readonly regex: RegExp }
+
+function compileExcludePatterns(
+  patterns: readonly string[],
+): CompiledExcludePattern[] {
+  return patterns.map((pattern) => {
+    if (!pattern.includes('*')) return { kind: 'prefix', prefix: pattern }
+    if (fg.isDynamicPattern(pattern)) {
+      return {
+        kind: 'regex',
+        regex: new RegExp(
+          '^' +
+            pattern.replace(/\*\*/g, '.*').replace(/\*/g, '[^/]*') +
+            '(/|$)',
+        ),
+      }
+    }
+    return { kind: 'prefix', prefix: pattern }
+  })
+}
+
 /**
- * Check if a path matches any of the exclude patterns.
+ * Check if a path matches any of the pre-compiled exclude patterns.
  * Patterns are matched against the path relative to root.
  */
 function isExcludedPath(
   absPath: string,
   rootAbs: string,
-  excludePatterns: readonly string[],
+  compiledPatterns: readonly CompiledExcludePattern[],
 ): boolean {
-  if (!excludePatterns.length) return false
+  if (!compiledPatterns.length) return false
   const rel = path.relative(rootAbs, absPath)
-  return excludePatterns.some((pattern) => {
-    // Support simple prefix matching (e.g., 'admin' matches 'admin/foo.ts')
-    if (!pattern.includes('*')) {
-      return rel.startsWith(pattern) || rel.startsWith(pattern + path.sep)
+  return compiledPatterns.some((p) => {
+    if (p.kind === 'prefix') {
+      return rel.startsWith(p.prefix) || rel.startsWith(p.prefix + path.sep)
     }
-    // For glob patterns, use fast-glob's isDynamicPattern check and simple matching
-    return fg.isDynamicPattern(pattern)
-      ? new RegExp(
-          '^' +
-            pattern.replace(/\*\*/g, '.*').replace(/\*/g, '[^/]*') +
-            '(/|$)',
-        ).test(rel)
-      : rel.startsWith(pattern)
+    return p.regex.test(rel)
   })
 }
 
@@ -263,6 +278,7 @@ export async function autoDiscoverTargetsAndTests(
   const exts = new Set(toArray(cfg.extensions ?? EXT_DEFAULT))
   const testGlobs = toArray(cfg.testPatterns ?? TEST_PATTERNS_DEFAULT)
   const excludePatterns = toArray(cfg.excludePaths)
+  const compiledExcludePatterns = compileExcludePatterns(excludePatterns)
 
   // Build ignore patterns for fast-glob
   const defaultIgnore = ['**/node_modules/**', '**/dist/**', '**/.*/**']
@@ -312,7 +328,7 @@ export async function autoDiscoverTargetsAndTests(
       isUnder(absFile, sourceRoots) &&
       fs.existsSync(absFile) &&
       !testSet.has(key) &&
-      !isExcludedPath(absFile, rootAbs, excludePatterns)
+      !isExcludedPath(absFile, rootAbs, compiledExcludePatterns)
     ) {
       if (!targets.has(key)) {
         targets.set(key, {

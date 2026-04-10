@@ -451,6 +451,47 @@ describe('JestPool', () => {
     await pool.shutdown()
   })
 
+  it('handleWorkerExit removes idle worker from availableWorkers and restarts', async () => {
+    let workerNum = 0
+    const allWorkers: any[] = []
+
+    const pool = new JestPool({
+      cwd: '/tmp',
+      concurrency: 1,
+      createWorker: (id) => {
+        workerNum++
+        const w = new EventEmitter() as any
+        w.id = id
+        w.start = vi.fn().mockResolvedValue(undefined)
+        w.isReady = vi.fn().mockReturnValue(true)
+        w.isBusy = vi.fn().mockReturnValue(false)
+        w.run = vi.fn().mockResolvedValue({ killed: true, durationMs: 1 })
+        w.shutdown = vi.fn().mockResolvedValue(undefined)
+        w.kill = vi.fn()
+        allWorkers.push(w)
+        return w
+      },
+    })
+
+    await pool.init()
+    expect(allWorkers).toHaveLength(1)
+
+    // Worker 1 exits while idle — it is currently in availableWorkers
+    allWorkers[0].emit('exit', 1)
+    await new Promise((r) => setImmediate(r))
+    await new Promise((r) => setImmediate(r))
+
+    // Replacement worker should have been created
+    expect(allWorkers).toHaveLength(2)
+
+    // Pool should still serve tasks via the new worker
+    const result = await pool.run(dummyMutant, ['t'])
+    expect(result.killed).toBe(true)
+    expect(allWorkers[1].run).toHaveBeenCalled()
+
+    await pool.shutdown()
+  })
+
   it('does not double-shutdown', async () => {
     const workers: any[] = []
     const pool = new JestPool({

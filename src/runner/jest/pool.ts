@@ -279,10 +279,7 @@ export class JestPool {
   }
 
   private handleWorkerExit(worker: JestWorker): void {
-    const availIdx = this.availableWorkers.indexOf(worker)
-    if (availIdx >= 0) {
-      this.availableWorkers.splice(availIdx, 1)
-    }
+    this.availableWorkers = this.availableWorkers.filter((w) => w !== worker)
 
     const newWorker =
       this.options.createWorker?.(worker.id, {

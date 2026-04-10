@@ -282,11 +282,14 @@ export async function runOrchestrator(cliArgs: string[], cwd: string) {
       log.info(
         `\u2713 TypeScript: filtered ${compileErrorIds.size} mutant(s) with compile errors`,
       )
-      runnableVariants = variants.filter((v) => !compileErrorIds.has(v.id))
+      const runnableVariantsArr: Variant[] = []
+      const compileErrorVariants: Variant[] = []
+      for (const v of variants) {
+        if (compileErrorIds.has(v.id)) compileErrorVariants.push(v)
+        else runnableVariantsArr.push(v)
+      }
+      runnableVariants = runnableVariantsArr
       // Pre-populate cache for compile-error mutants so they appear in summary
-      const compileErrorVariants = variants.filter((v) =>
-        compileErrorIds.has(v.id),
-      )
       const compileErrorTasks = prepareTasks(
         compileErrorVariants,
         updatedCoverage.perTestCoverage,

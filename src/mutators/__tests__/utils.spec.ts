@@ -253,6 +253,17 @@ describe('collectAllTargets', () => {
     const result = collectAllTargets(src, ctx.ast, ctx.tokens, ctx.ignoreLines)
     expect(result.assignmentTargets.get('+=')?.length).toBe(2)
   })
+
+  it('assigns distinct positions to multiple same-value operator tokens', () => {
+    const src = `const x = a && b || c && d`
+    const ctx = buildParseContext(src)
+    const result = collectAllTargets(src, ctx.ast, ctx.tokens, ctx.ignoreLines)
+    const andTargets = result.operatorTargets.get('&&')!
+    expect(andTargets).toHaveLength(2)
+    expect(andTargets[0].start).not.toBe(andTargets[1].start)
+    expect(andTargets[0].end).not.toBe(andTargets[1].end)
+    expect(andTargets[0].start).toBeLessThan(andTargets[1].start)
+  })
 })
 
 // ---------------------------------------------------------------------------
