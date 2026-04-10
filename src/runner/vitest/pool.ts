@@ -365,10 +365,7 @@ export class VitestPool {
 
   private handleWorkerExit(worker: VitestWorker): void {
     // Remove from available list
-    const availIdx = this.availableWorkers.indexOf(worker)
-    if (availIdx >= 0) {
-      this.availableWorkers.splice(availIdx, 1)
-    }
+    this.availableWorkers = this.availableWorkers.filter((w) => w !== worker)
 
     // Try to restart the worker
     poolLog.debug(`Worker ${worker.id} exited, attempting restart`)

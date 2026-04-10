@@ -97,11 +97,16 @@ export async function mutateVueSfcTemplate(
     throw new Error(`max must be a positive number, got: ${max}`)
   }
 
-  const activeNames: string[] = include?.length
-    ? TEMPLATE_MUTATOR_NAMES.filter((n) => include.includes(n))
-    : exclude?.length
-      ? TEMPLATE_MUTATOR_NAMES.filter((n) => !exclude.includes(n))
-      : [...TEMPLATE_MUTATOR_NAMES]
+  let activeNames: string[]
+  if (include?.length) {
+    const includeSet = new Set(include)
+    activeNames = TEMPLATE_MUTATOR_NAMES.filter((n) => includeSet.has(n))
+  } else if (exclude?.length) {
+    const excludeSet = new Set(exclude)
+    activeNames = TEMPLATE_MUTATOR_NAMES.filter((n) => !excludeSet.has(n))
+  } else {
+    activeNames = [...TEMPLATE_MUTATOR_NAMES]
+  }
 
   if (activeNames.length === 0) return []
 

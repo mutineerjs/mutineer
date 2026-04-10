@@ -92,11 +92,13 @@ export function getRegistry(
   let list = ALL
 
   if (include?.length) {
-    list = list.filter((m) => include.includes(m.name))
+    const includeSet = new Set(include)
+    list = list.filter((m) => includeSet.has(m.name))
   }
 
   if (exclude?.length) {
-    list = list.filter((m) => !exclude.includes(m.name))
+    const excludeSet = new Set(exclude)
+    list = list.filter((m) => !excludeSet.has(m.name))
   }
 
   return list

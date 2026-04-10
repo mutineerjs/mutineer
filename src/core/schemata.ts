@@ -17,6 +17,7 @@ interface SiteVariant {
 interface Site {
   origStart: number
   origEnd: number
+  key: string
   variants: SiteVariant[]
 }
 
@@ -233,7 +234,12 @@ export function generateSchema(
 
     const key = `${siteStart}:${siteEnd}`
     if (!siteMap.has(key)) {
-      siteMap.set(key, { origStart: siteStart, origEnd: siteEnd, variants: [] })
+      siteMap.set(key, {
+        origStart: siteStart,
+        origEnd: siteEnd,
+        key,
+        variants: [],
+      })
     }
     siteMap.get(key)!.variants.push({ id: variant.id, replacement })
   }
@@ -253,8 +259,8 @@ export function generateSchema(
       const b = sites[j]
       if (b.origStart >= a.origEnd) break // sorted by start, no further overlap
 
-      const keyA = `${a.origStart}:${a.origEnd}`
-      const keyB = `${b.origStart}:${b.origEnd}`
+      const keyA = a.key
+      const keyB = b.key
 
       if (b.origEnd <= a.origEnd) {
         // b fully contained within a → keep b (inner), mark a (outer) as fallback
@@ -272,11 +278,12 @@ export function generateSchema(
 
   const s = new MagicString(originalCode)
 
-  // Apply sites in descending order to preserve character positions
-  const sortedDesc = [...sites].sort((a, b) => b.origStart - a.origStart)
-
-  for (const site of sortedDesc) {
-    const key = `${site.origStart}:${site.origEnd}`
+  // Apply sites in descending order to preserve character positions.
+  // sites is already sorted ascending by origStart, so iterating in reverse
+  // gives descending order without an extra sort + copy.
+  for (let siteIdx = sites.length - 1; siteIdx >= 0; siteIdx--) {
+    const site = sites[siteIdx]
+    const key = site.key
     if (overlappingSiteKeys.has(key)) {
       for (const v of site.variants) fallbackIds.add(v.id)
       continue

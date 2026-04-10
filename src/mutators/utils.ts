@@ -203,6 +203,40 @@ export interface ParseContext {
 }
 
 /**
+ * Binary-search for the first token index with start >= target.
+ * Assumes tokens within the group are sorted by start position.
+ */
+function lowerBound(group: readonly TokenLike[], target: number): number {
+  let lo = 0
+  let hi = group.length
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1
+    if (group[mid].start < target) lo = mid + 1
+    else hi = mid
+  }
+  return lo
+}
+
+/**
+ * Find the first token within [nodeStart, nodeEnd] that has the given value.
+ * Uses a pre-grouped map for O(1) group lookup and binary search within the group.
+ */
+function findTokenForNode(
+  tokensByValue: Map<string, TokenLike[]>,
+  nodeStart: number,
+  nodeEnd: number,
+  opValue: string,
+): TokenLike {
+  const group = tokensByValue.get(opValue)
+  if (!group) return undefined!
+  const lo = lowerBound(group, nodeStart)
+  for (let i = lo; i < group.length && group[i].start <= nodeEnd; i++) {
+    if (group[i].end <= nodeEnd) return group[i]
+  }
+  return undefined!
+}
+
+/**
  * Single traversal that collects all operator targets and return statements.
  * Eliminates per-mutator traversals when using ParseContext.
  */
@@ -218,14 +252,26 @@ export function collectAllTargets(
   const assignmentTargets = new Map<string, OperatorTarget[]>()
   const callTargets = new Map<string, CallTarget[]>()
 
+  // Build token index grouped by value for O(log n) lookup per operator node.
+  // Relies on `tokens` being in ascending start-position order, which is guaranteed
+  // when tokens come from Babel's parser (the only source in this codebase). Each
+  // per-value group inherits that order, making binary search in findTokenForNode safe.
+  const tokensByValue = new Map<string, TokenLike[]>()
+  for (const tk of tokens) {
+    if (!tk.value) continue
+    let arr = tokensByValue.get(tk.value)
+    if (!arr) {
+      arr = []
+      tokensByValue.set(tk.value, arr)
+    }
+    arr.push(tk)
+  }
+
   function handleBinaryOrLogical(n: t.BinaryExpression | t.LogicalExpression) {
     const nodeStart = n.start!
     const nodeEnd = n.end!
     const opValue = n.operator
-    const tok = tokens.find(
-      (tk) =>
-        tk.start >= nodeStart && tk.end <= nodeEnd && tk.value === opValue,
-    )!
+    const tok = findTokenForNode(tokensByValue, nodeStart, nodeEnd, opValue)
     const line = tok.loc.start.line
     if (ignoreLines.has(line)) return
     const visualCol = getVisualColumn(src, tok.start)
@@ -247,10 +293,7 @@ export function collectAllTargets(
     const nodeStart = n.start!
     const nodeEnd = n.end!
     const opValue = n.operator
-    const tok = tokens.find(
-      (tk) =>
-        tk.start >= nodeStart && tk.end <= nodeEnd && tk.value === opValue,
-    )!
+    const tok = findTokenForNode(tokensByValue, nodeStart, nodeEnd, opValue)
     const line = tok.loc.start.line
     if (ignoreLines.has(line)) return
     const visualCol = getVisualColumn(src, tok.start)
@@ -294,10 +337,7 @@ export function collectAllTargets(
     const nodeStart = n.start!
     const nodeEnd = n.end!
     const opValue = n.operator
-    const tok = tokens.find(
-      (tk) =>
-        tk.start >= nodeStart && tk.end <= nodeEnd && tk.value === opValue,
-    )!
+    const tok = findTokenForNode(tokensByValue, nodeStart, nodeEnd, opValue)
     const line = tok.loc.start.line
     if (ignoreLines.has(line)) return
     const visualCol = getVisualColumn(src, tok.start)
