@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.0](https://github.com/mutineerjs/mutineer/compare/v0.11.0...v0.12.0) (2026-04-10)
+
+
+### Added
+
+* add Vue template and composition API mutation support ([#63](https://github.com/mutineerjs/mutineer/issues/63)) ([1b59ba5](https://github.com/mutineerjs/mutineer/commit/1b59ba52ea221ac26def35f78216daadb6839bcb))
+
 ## [0.11.0](https://github.com/mutineerjs/mutineer/compare/v0.10.0...v0.11.0) (2026-03-25)
 
 
