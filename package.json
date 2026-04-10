@@ -1,6 +1,6 @@
 {
   "name": "@mutineerjs/mutineer",
-  "version": "0.12.0",
+  "version": "0.12.1",
   "description": "A fast, targeted mutation testing framework for JavaScript and TypeScript",
   "type": "module",
   "private": false,

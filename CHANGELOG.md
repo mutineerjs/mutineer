@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.1](https://github.com/mutineerjs/mutineer/compare/v0.12.0...v0.12.1) (2026-04-10)
+
+
+### Changed
+
+* improved some queries with better algorithms ([#68](https://github.com/mutineerjs/mutineer/issues/68)) ([c7cee86](https://github.com/mutineerjs/mutineer/commit/c7cee8668e5538c39b2cba65131f9afe2ff4cc75))
+
 ## [0.12.0](https://github.com/mutineerjs/mutineer/compare/v0.11.0...v0.12.0) (2026-04-10)
 
 
