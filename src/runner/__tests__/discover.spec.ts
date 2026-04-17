@@ -616,4 +616,31 @@ describe('autoDiscoverTargetsAndTests', () => {
       await fs.rm(tmpDir, { recursive: true, force: true })
     }
   })
+
+  it('resolves ESM .js imports to .ts source files via node resolver', async () => {
+    const tmpDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'mutineer-discover-esmjs-'),
+    )
+    const srcDir = path.join(tmpDir, 'src')
+    const moduleFile = path.join(srcDir, 'foo.ts')
+    const testFile = path.join(srcDir, 'foo.test.ts')
+
+    await fs.mkdir(srcDir, { recursive: true })
+    await fs.writeFile(moduleFile, 'export const foo = 1\n', 'utf8')
+    // ESM TS pattern: import uses .js extension but file on disk is .ts
+    const importLine = ['im', `port { foo } from "./foo.js"`].join('')
+    await fs.writeFile(testFile, `${importLine}\n`, 'utf8')
+
+    try {
+      const { targets } = await autoDiscoverTargetsAndTests(tmpDir, {
+        testPatterns: ['**/*.test.ts'],
+      })
+      const targetFiles = targets.map((t) =>
+        normalizePath(typeof t === 'string' ? t : t.file),
+      )
+      expect(targetFiles).toContain(normalizePath(moduleFile))
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true })
+    }
+  })
 })

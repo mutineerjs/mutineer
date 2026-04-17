@@ -201,7 +201,31 @@ async function createViteResolver(
 
       if (candidateId) {
         const q = candidateId.indexOf('?')
-        return normalizePath(q >= 0 ? candidateId.slice(0, q) : candidateId)
+        const resolvedPath = normalizePath(
+          q >= 0 ? candidateId.slice(0, q) : candidateId,
+        )
+        // ESM TS pattern: Vite may echo back the .js spec; check if .ts file exists instead
+        if (
+          specOrAbs.endsWith('.js') &&
+          importer &&
+          !fs.existsSync(resolvedPath)
+        ) {
+          const tsAbs = path.resolve(
+            path.dirname(importer),
+            specOrAbs.slice(0, -3) + '.ts',
+          )
+          if (fs.existsSync(tsAbs)) return normalizePath(tsAbs)
+        }
+        return resolvedPath
+      }
+
+      // ESM TS pattern: Vite returned no result; check if .ts file exists
+      if (specOrAbs.endsWith('.js') && importer) {
+        const tsAbs = path.resolve(
+          path.dirname(importer),
+          specOrAbs.slice(0, -3) + '.ts',
+        )
+        if (fs.existsSync(tsAbs)) return normalizePath(tsAbs)
       }
 
       return normalizePath(specOrAbs)
@@ -236,6 +260,14 @@ function createNodeResolver(): {
     try {
       return normalizePath(require.resolve(specOrAbs))
     } catch {
+      // ESM TS pattern: import written as ./foo.js but file is ./foo.ts
+      if (specOrAbs.endsWith('.js')) {
+        try {
+          return normalizePath(require.resolve(specOrAbs.slice(0, -3) + '.ts'))
+        } catch {
+          /* continue to extension loop */
+        }
+      }
       // Try with different extensions
       for (const ext of SUPPORTED_EXTENSIONS) {
         try {
