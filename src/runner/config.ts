@@ -101,13 +101,24 @@ export async function loadMutineerConfig(
  * @throws Error if loading fails
  */
 async function loadTypeScriptConfig(filePath: string): Promise<unknown> {
+  // Try vite first if available
   try {
     const { loadConfigFromFile } = await import('vite')
     const loaded = await loadConfigFromFile(VITE_CONFIG_OPTIONS, filePath)
     return loaded?.config ?? {}
+  } catch {
+    // vite not installed — fall through
+  }
+
+  // Fallback: use jiti (lightweight TS loader, no vite required)
+  try {
+    const { createJiti } = await import('jiti')
+    const jiti = createJiti(import.meta.url, { interopDefault: true })
+    return await jiti.import(filePath)
   } catch (err) {
     throw new Error(
-      `Cannot load TypeScript config. Ensure 'vite' is installed or rename to .js/.mjs:\n${toErrorMessage(err)}`,
+      `Cannot load TypeScript config. Ensure 'vite' or 'jiti' is installed, or
+   rename to .js/.mjs:\n${toErrorMessage(err)}`,
     )
   }
 }

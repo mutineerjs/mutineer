@@ -85,20 +85,47 @@ describe('loadMutineerConfig', () => {
     expect(config).toEqual({ runner: 'vitest' })
   })
 
-  it('throws with helpful message when TypeScript config fails to load', async () => {
+  it('falls back to jiti when vite is unavailable', async () => {
     vi.doMock('vite', () => ({
       loadConfigFromFile: vi
         .fn()
         .mockRejectedValue(new Error('vite not available')),
+    }))
+    vi.doMock('jiti', () => ({
+      createJiti: vi.fn().mockReturnValue({
+        import: vi.fn().mockResolvedValue({ runner: 'vitest' }),
+      }),
+    }))
+    vi.resetModules()
+    const { loadMutineerConfig: loadConfig } = await import('../config.js')
+    const configFile = path.join(tmpDir, 'mutineer.config.ts')
+    await fs.writeFile(configFile, 'export default { runner: "vitest" }')
+    const config = await loadConfig(tmpDir)
+    expect(config).toEqual({ runner: 'vitest' })
+    vi.doUnmock('vite')
+    vi.doUnmock('jiti')
+  })
+
+  it('throws with helpful message when both vite and jiti fail', async () => {
+    vi.doMock('vite', () => ({
+      loadConfigFromFile: vi
+        .fn()
+        .mockRejectedValue(new Error('vite not available')),
+    }))
+    vi.doMock('jiti', () => ({
+      createJiti: vi.fn().mockReturnValue({
+        import: vi.fn().mockRejectedValue(new Error('jiti not available')),
+      }),
     }))
     vi.resetModules()
     const { loadMutineerConfig: loadConfig } = await import('../config.js')
     const configFile = path.join(tmpDir, 'mutineer.config.ts')
     await fs.writeFile(configFile, 'export default { runner: "vitest" }')
     await expect(loadConfig(tmpDir)).rejects.toThrow(
-      'Cannot load TypeScript config',
+      "Cannot load TypeScript config. Ensure 'vite' or 'jiti' is installed",
     )
     vi.doUnmock('vite')
+    vi.doUnmock('jiti')
   })
 
   it('loads a module with named exports only (no default export)', async () => {
@@ -122,9 +149,16 @@ describe('loadMutineerConfig', () => {
     vi.doUnmock('vite')
   })
 
-  it('stringifies non-Error thrown by loadConfigFromFile', async () => {
+  it('stringifies non-Error thrown by jiti', async () => {
     vi.doMock('vite', () => ({
-      loadConfigFromFile: vi.fn().mockRejectedValue('plain string error'),
+      loadConfigFromFile: vi
+        .fn()
+        .mockRejectedValue(new Error('vite not available')),
+    }))
+    vi.doMock('jiti', () => ({
+      createJiti: vi.fn().mockReturnValue({
+        import: vi.fn().mockRejectedValue('plain string error'),
+      }),
     }))
     vi.resetModules()
     const { loadMutineerConfig: loadConfig } = await import('../config.js')
@@ -132,5 +166,6 @@ describe('loadMutineerConfig', () => {
     await fs.writeFile(configFile, 'export default {}')
     await expect(loadConfig(tmpDir)).rejects.toThrow('plain string error')
     vi.doUnmock('vite')
+    vi.doUnmock('jiti')
   })
 })

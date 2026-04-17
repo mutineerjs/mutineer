@@ -91,6 +91,9 @@
     "@vue/compiler-sfc": {
       "optional": true
     },
+    "jiti": {
+      "optional": true
+    },
     "vitest": {
       "optional": true
     },
