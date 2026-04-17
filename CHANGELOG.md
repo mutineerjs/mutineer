@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.2](https://github.com/mutineerjs/mutineer/compare/v0.12.1...v0.12.2) (2026-04-17)
+
+
+### Fixed
+
+* fallback to jiti and add as a optional dependency ([#70](https://github.com/mutineerjs/mutineer/issues/70)) ([766dc62](https://github.com/mutineerjs/mutineer/commit/766dc627aa63e82b5680d2d226bb968aff0caf72))
+
 ## [0.12.1](https://github.com/mutineerjs/mutineer/compare/v0.12.0...v0.12.1) (2026-04-10)
 
 
