@@ -152,3 +152,4 @@ reports/mutation/
 **/__mutineer__/
 
 mutineer-report.json
+.planning/
