@@ -13,6 +13,13 @@ import { toErrorMessage } from '../../utils/errors.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
+export class ShutdownError extends Error {
+  constructor() {
+    super('Pool is shutting down')
+    this.name = 'ShutdownError'
+  }
+}
+
 const workerLog = createLogger('JestWorker')
 const poolLog = createLogger('JestPool')
 
@@ -228,7 +235,10 @@ export interface JestPoolOptions {
 export class JestPool {
   private workers: JestWorker[] = []
   private availableWorkers: JestWorker[] = []
-  private waitingTasks: Array<(worker: JestWorker) => void> = []
+  private waitingTasks: Array<{
+    resolve: (worker: JestWorker) => void
+    reject: (err: Error) => void
+  }> = []
   private readonly options: Required<
     Omit<JestPoolOptions, 'jestConfig' | 'createWorker'>
   > & {
@@ -314,8 +324,8 @@ export class JestPool {
       return worker
     }
 
-    return new Promise((resolve) => {
-      this.waitingTasks.push(resolve)
+    return new Promise((resolve, reject) => {
+      this.waitingTasks.push({ resolve, reject })
     })
   }
 
@@ -323,7 +333,7 @@ export class JestPool {
     if (!worker.isReady()) return
     const waiting = this.waitingTasks.shift()
     if (waiting) {
-      waiting(worker)
+      waiting.resolve(worker)
       return
     }
 
@@ -354,6 +364,11 @@ export class JestPool {
   async shutdown(): Promise<void> {
     if (this.shuttingDown) return
     this.shuttingDown = true
+
+    for (const waiting of this.waitingTasks) {
+      waiting.reject(new ShutdownError())
+    }
+    this.waitingTasks = []
 
     await Promise.all(this.workers.map((w) => w.shutdown()))
     this.workers = []
