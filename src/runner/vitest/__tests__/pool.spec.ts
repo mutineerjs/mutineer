@@ -2,7 +2,12 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { EventEmitter } from 'node:events'
 import * as childProcess from 'node:child_process'
 import * as readline from 'node:readline'
-import { VitestPool, runWithPool, type MutantPayload } from '../pool.js'
+import {
+  VitestPool,
+  ShutdownError,
+  runWithPool,
+  type MutantPayload,
+} from '../pool.js'
 
 vi.mock('node:child_process', () => ({ spawn: vi.fn() }))
 vi.mock('node:readline', () => ({ createInterface: vi.fn() }))
@@ -1230,5 +1235,50 @@ describe('VitestPool', () => {
       'Suite > test two',
     ])
     await pool.shutdown()
+  })
+
+  it('rejects queued waitingTasks with ShutdownError on shutdown', async () => {
+    const pool = new VitestPool({
+      cwd: process.cwd(),
+      concurrency: 1,
+      createWorker: (id) => {
+        const worker = new EventEmitter() as any
+        worker.id = id
+        worker.start = vi.fn().mockResolvedValue(undefined)
+        worker.isReady = vi.fn().mockReturnValue(true)
+        worker.isBusy = vi.fn().mockReturnValue(false)
+        worker.run = vi.fn().mockReturnValue(new Promise(() => {})) // never resolves
+        worker.shutdown = vi.fn().mockResolvedValue(undefined)
+        worker.kill = vi.fn()
+        return worker
+      },
+    })
+
+    await pool.init()
+
+    const mutant: MutantPayload = {
+      id: 'sd1',
+      name: 'flipEQ',
+      file: 'foo.ts',
+      code: 'x',
+      line: 1,
+      col: 1,
+    }
+
+    // First run acquires the only worker and blocks it indefinitely
+    void pool.run(mutant, ['t'])
+    await new Promise((r) => setImmediate(r))
+
+    // Second run queues in waitingTasks — no available worker
+    const run2 = pool.run({ ...mutant, id: 'sd2' }, ['t'])
+    await new Promise((r) => setImmediate(r))
+
+    // Shutdown should drain waitingTasks with ShutdownError
+    void pool.shutdown()
+
+    const error = await run2.catch((e) => e)
+    expect(error).toBeInstanceOf(ShutdownError)
+    expect(error.name).toBe('ShutdownError')
+    expect(error.message).toBe('Pool is shutting down')
   })
 })
