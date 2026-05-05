@@ -152,7 +152,7 @@ export async function executePool(opts: PoolExecutionOptions): Promise<void> {
         code: v.code,
         line: v.line,
         col: v.col,
-        isFallback: !fallbackIds || fallbackIds.has(v.id),
+        isFallback: fallbackIds?.has(v.id) ?? false,
       },
       tests,
     )

@@ -540,7 +540,7 @@ describe('executePool', () => {
     )
   })
 
-  it('defaults isFallback=true when fallbackIds is not provided', async () => {
+  it('defaults isFallback=false when fallbackIds is not provided', async () => {
     const adapter = makeAdapter()
     const cache: Record<string, MutantCacheEntry> = {}
     const task = makeTask({ key: 'no-fallback-ids-key' })
@@ -556,7 +556,7 @@ describe('executePool', () => {
     })
 
     expect(adapter.runMutant).toHaveBeenCalledWith(
-      expect.objectContaining({ isFallback: true }),
+      expect.objectContaining({ isFallback: false }),
       expect.any(Array),
     )
   })
