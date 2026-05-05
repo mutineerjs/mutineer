@@ -35,6 +35,13 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const workerLog = createLogger('VitestWorker')
 const poolLog = createLogger('VitestPool')
 
+export class ShutdownError extends Error {
+  constructor() {
+    super('Pool is shutting down')
+    this.name = 'ShutdownError'
+  }
+}
+
 interface WorkerMessage {
   type: 'ready' | 'result' | 'shutdown'
   workerId?: string
@@ -300,7 +307,10 @@ export interface VitestPoolOptions {
 export class VitestPool {
   private workers: VitestWorker[] = []
   private availableWorkers: VitestWorker[] = []
-  private waitingTasks: Array<(worker: VitestWorker) => void> = []
+  private waitingTasks: Array<{
+    resolve: (worker: VitestWorker) => void
+    reject: (err: Error) => void
+  }> = []
   private readonly options: Required<
     Omit<VitestPoolOptions, 'vitestConfig' | 'vitestProject' | 'createWorker'>
   > & {
@@ -412,8 +422,8 @@ export class VitestPool {
     }
 
     // Wait for one to become available
-    return new Promise((resolve) => {
-      this.waitingTasks.push(resolve)
+    return new Promise((resolve, reject) => {
+      this.waitingTasks.push({ resolve, reject })
     })
   }
 
@@ -422,7 +432,7 @@ export class VitestPool {
     // If someone is waiting, give them the worker directly
     const waiting = this.waitingTasks.shift()
     if (waiting) {
-      waiting(worker)
+      waiting.resolve(worker)
       return
     }
 
@@ -451,6 +461,11 @@ export class VitestPool {
   async shutdown(): Promise<void> {
     if (this.shuttingDown) return
     this.shuttingDown = true
+
+    for (const waiting of this.waitingTasks) {
+      waiting.reject(new ShutdownError())
+    }
+    this.waitingTasks = []
 
     poolLog.debug('Shutting down pool')
 

@@ -302,3 +302,40 @@ describe('collectOperatorTargetsFromContext', () => {
     expect(targets).toHaveLength(0)
   })
 })
+
+// ---------------------------------------------------------------------------
+// findTokenForNode sentinel paths (via collectAllTargets)
+// ---------------------------------------------------------------------------
+
+describe('findTokenForNode sentinel (via collectAllTargets)', () => {
+  it('does not throw when operator has no token group (empty tokens list)', () => {
+    // Empty tokens → tokensByValue is empty → findTokenForNode !group path (line 231)
+    const src = `const x = a + b`
+    const ast = parseSource(src) as any
+    const result = collectAllTargets(src, ast, [], new Set())
+    const targets = result.operatorTargets.get('+') ?? []
+    for (const t of targets) {
+      expect(typeof t.start).toBe('number')
+      expect(typeof t.end).toBe('number')
+    }
+  })
+
+  it('does not throw when token exists but is outside the node range', () => {
+    // Token with matching value is at position 9999 (past node end) →
+    // lowerBound returns 0, but group[0].start > nodeEnd → loop never runs (line 236)
+    const src = `const x = a + b`
+    const ast = parseSource(src) as any
+    const outOfRange = {
+      value: '+',
+      start: 9999,
+      end: 10000,
+      loc: { start: { line: 99, column: 0 }, end: { line: 99, column: 1 } },
+    }
+    const result = collectAllTargets(src, ast, [outOfRange], new Set())
+    const targets = result.operatorTargets.get('+') ?? []
+    for (const t of targets) {
+      expect(typeof t.start).toBe('number')
+      expect(typeof t.end).toBe('number')
+    }
+  })
+})

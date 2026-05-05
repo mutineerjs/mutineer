@@ -492,6 +492,41 @@ describe('JestPool', () => {
     await pool.shutdown()
   })
 
+  it('rejects queued waitingTasks with ShutdownError on shutdown', async () => {
+    const pool = new JestPool({
+      cwd: '/tmp',
+      concurrency: 1,
+      createWorker: (id) => {
+        const w = new EventEmitter() as any
+        w.id = id
+        w.start = vi.fn().mockResolvedValue(undefined)
+        w.isReady = vi.fn().mockReturnValue(true)
+        w.isBusy = vi.fn().mockReturnValue(false)
+        w.run = vi.fn().mockReturnValue(new Promise(() => {})) // never resolves — keeps worker busy
+        w.shutdown = vi.fn().mockResolvedValue(undefined)
+        w.kill = vi.fn()
+        return w
+      },
+    })
+
+    await pool.init()
+
+    // First run acquires the only worker and blocks it indefinitely
+    void pool.run(dummyMutant, ['t'])
+    await new Promise((r) => setImmediate(r))
+
+    // Second run queues in waitingTasks — no available worker
+    const run2 = pool.run({ ...dummyMutant, id: 'test#2' }, ['t'])
+    await new Promise((r) => setImmediate(r))
+
+    // Shutdown should drain waitingTasks with ShutdownError
+    void pool.shutdown()
+
+    const error = await run2.catch((e) => e)
+    expect(error.name).toBe('ShutdownError')
+    expect(error.message).toBe('Pool is shutting down')
+  })
+
   it('does not double-shutdown', async () => {
     const workers: any[] = []
     const pool = new JestPool({

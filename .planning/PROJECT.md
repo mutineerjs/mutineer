@@ -2,7 +2,7 @@
 
 ## What This Is
 
-Mutineer is a mutation testing CLI for JavaScript and TypeScript projects, supporting Vitest and Jest. It applies AST-level source mutations, runs tests against each mutant via persistent worker pools, and reports killed/escaped/timeout results. This milestone targets three high-severity bugs identified by codebase analysis that risk silent incorrect output, indefinite process hangs, and silent performance regressions.
+Mutineer is a mutation testing CLI for JavaScript and TypeScript projects, supporting Vitest and Jest. It applies AST-level source mutations, runs tests against each mutant via persistent worker pools, and reports killed/escaped/timeout results. v1.0 shipped four targeted correctness fixes: accurate mutation byte offsets, clean worker pool shutdown, and correct fast-path routing.
 
 ## Core Value
 
@@ -23,12 +23,18 @@ Mutation results must be correct and the process must exit cleanly — wrong pos
 - ✓ `--shard n/N` flag for distributed runs — existing
 - ✓ Cloud runner stubs (`src/runner/cloud/`, `src/server/`) — existing (incomplete)
 - ✓ `--changed-with-deps`, `--timeout`, `--report` CLI flags — existing
+- ✓ **CORR-01**: `findTokenForNode` returns valid `TokenLike` (MISSING_TOKEN sentinel) — v1.0
+- ✓ **CORR-02**: VitestPool rejects all `waitingTasks` with `ShutdownError` on shutdown — v1.0
+- ✓ **CORR-03**: JestPool rejects all `waitingTasks` with `ShutdownError` on shutdown — v1.0
+- ✓ **CORR-04**: Pool executor defaults `isFallback` to `false` when `fallbackIds` is `undefined` — v1.0
 
 ### Active
 
-- [ ] **BUG-01**: Fix `return undefined!` non-null assertion in `src/mutators/utils.ts:231,236` — callers receive `undefined` where `TokenLike` is expected, producing silent wrong mutation positions
-- [ ] **BUG-02**: Flush `waitingTasks` on pool shutdown in `src/runner/vitest/pool.ts` and `src/runner/jest/pool.ts` — tasks queued in the waiting list hang forever when `shutdown()` is called
-- [ ] **BUG-03**: Fix `isFallback` default-true inversion in `src/runner/pool-executor.ts:155` — when `fallbackIds` is `undefined`, all mutants silently use the slower redirect path instead of the schema path
+- [ ] **QUAL-01**: Raise coverage threshold from 60% to 80%
+- [ ] **QUAL-02**: Fix `process.exitCode` used as cross-module flow control
+- [ ] **QUAL-03**: Encapsulate Vitest internals accessed via `as any`
+- [ ] **QUAL-04**: Deduplicate redirect-loader / redirect-state logic
+- [ ] **QUAL-05**: Replace stray `console.log` in `src/core/sfc.ts:132` with structured logger
 
 ### Out of Scope
 
@@ -39,13 +45,11 @@ Mutation results must be correct and the process must exit cleanly — wrong pos
 
 ## Context
 
+**Current state:** v1.0 shipped 2026-05-05. All four correctness bugs resolved. Codebase has 8 modified files, 883 tests passing across 42 files, build clean. Tech stack: TypeScript ESM, Node.js, Vitest, Jest.
+
+**Next milestone candidates:** Quality improvements (QUAL-01 through QUAL-05), cloud runner implementation, or new mutator types.
+
 Codebase map completed 2026-05-04 (`/gsd-map-codebase`). Three prior feature phases (DX fixes, new features, performance) are fully shipped. Cloud runner design is complete with stubs in place but no implementation.
-
-**BUG-01 details:** `src/mutators/utils.ts` has two `return undefined!` statements. The `!` non-null assertion tells TypeScript the return is `TokenLike` but the runtime value is `undefined`. Callers use this to compute mutation byte offsets — wrong positions silently corrupt generated mutants.
-
-**BUG-02 details:** `acquireWorker()` pushes to `this.waitingTasks` when all workers are busy. `releaseWorker()` drains the queue on each release. But `shutdown()` kills workers without draining `waitingTasks`, leaving any queued callers permanently suspended. Observed on SIGINT during high-concurrency runs.
-
-**BUG-03 details:** `pool-executor.ts:155` does `isFallback: fallbackIds?.has(task.id) ?? true`. When `fallbackIds` is `undefined` the `??` short-circuits to `true`, marking every mutant as fallback. This disables the fast schema path entirely, routing all mutants through the slower file-redirect path with no warning.
 
 ## Constraints
 
@@ -56,11 +60,12 @@ Codebase map completed 2026-05-04 (`/gsd-map-codebase`). Three prior feature pha
 
 ## Key Decisions
 
-| Decision                                         | Rationale                                                                       | Outcome   |
-| ------------------------------------------------ | ------------------------------------------------------------------------------- | --------- |
-| Fix only high severity                           | Minimise scope; medium issues don't risk silent incorrect output                | — Pending |
-| Fix BUG-03 by changing `?? true` to `?? false`   | `fallbackIds` being `undefined` should mean "no fallbacks", not "all fallbacks" | — Pending |
-| Fix BUG-02 by rejecting waitingTasks on shutdown | Rejection propagates cleanly; callers can handle the error rather than hanging  | — Pending |
+| Decision                                         | Rationale                                                                       | Outcome      |
+| ------------------------------------------------ | ------------------------------------------------------------------------------- | ------------ |
+| Fix only high severity                           | Minimise scope; medium issues don't risk silent incorrect output                | ✓ Good — clean, focused milestone |
+| Fix BUG-03 by changing `?? true` to `?? false`   | `fallbackIds` being `undefined` should mean "no fallbacks", not "all fallbacks" | ✓ Good — one-token fix, all tests pass |
+| Fix BUG-02 by rejecting waitingTasks on shutdown | Rejection propagates cleanly; callers can handle the error rather than hanging  | ✓ Good — ShutdownError pattern adopted for both pool types |
+| MISSING_TOKEN sentinel (not null/undefined)      | Callers can identity-check without crashing; three guard sites protect callsites | ✓ Good — cleaner than throwing, safer than null |
 
 ## Evolution
 
@@ -83,4 +88,4 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 
-_Last updated: 2026-05-04 after initialization_
+_Last updated: 2026-05-05 after v1.0 milestone_
