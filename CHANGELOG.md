@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.12.3](https://github.com/mutineerjs/mutineer/compare/v0.12.2...v0.12.3) (2026-05-05)
+
+
+### Documentation
+
+* create roadmap (1 phase) ([00189b4](https://github.com/mutineerjs/mutineer/commit/00189b4d629243e304b5822dad8452aaedd30199))
+* initialize project ([732e83f](https://github.com/mutineerjs/mutineer/commit/732e83fd53bf1508181960a8c8a68f344a9f9300))
+* map existing codebase ([64b6651](https://github.com/mutineerjs/mutineer/commit/64b66514e823e7f49f5f98ff0d4c2a7804cbadb4))
+
 ## [0.12.2](https://github.com/mutineerjs/mutineer/compare/v0.12.1...v0.12.2) (2026-04-17)
 
 
