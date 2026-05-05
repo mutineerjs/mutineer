@@ -202,6 +202,12 @@ export interface ParseContext {
   readonly preCollected: PreCollected
 }
 
+const MISSING_TOKEN: TokenLike = {
+  start: 0,
+  end: 0,
+  loc: { start: { line: 0, column: 0 }, end: { line: 0, column: 0 } },
+}
+
 /**
  * Binary-search for the first token index with start >= target.
  * Assumes tokens within the group are sorted by start position.
@@ -228,12 +234,12 @@ function findTokenForNode(
   opValue: string,
 ): TokenLike {
   const group = tokensByValue.get(opValue)
-  if (!group) return undefined!
+  if (!group) return MISSING_TOKEN
   const lo = lowerBound(group, nodeStart)
   for (let i = lo; i < group.length && group[i].start <= nodeEnd; i++) {
     if (group[i].end <= nodeEnd) return group[i]
   }
-  return undefined!
+  return MISSING_TOKEN
 }
 
 /**
