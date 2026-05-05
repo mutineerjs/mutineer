@@ -278,6 +278,7 @@ export function collectAllTargets(
     const nodeEnd = n.end!
     const opValue = n.operator
     const tok = findTokenForNode(tokensByValue, nodeStart, nodeEnd, opValue)
+    if (tok === MISSING_TOKEN) return
     const line = tok.loc.start.line
     if (ignoreLines.has(line)) return
     const visualCol = getVisualColumn(src, tok.start)
@@ -300,6 +301,7 @@ export function collectAllTargets(
     const nodeEnd = n.end!
     const opValue = n.operator
     const tok = findTokenForNode(tokensByValue, nodeStart, nodeEnd, opValue)
+    if (tok === MISSING_TOKEN) return
     const line = tok.loc.start.line
     if (ignoreLines.has(line)) return
     const visualCol = getVisualColumn(src, tok.start)
@@ -344,6 +346,7 @@ export function collectAllTargets(
     const nodeEnd = n.end!
     const opValue = n.operator
     const tok = findTokenForNode(tokensByValue, nodeStart, nodeEnd, opValue)
+    if (tok === MISSING_TOKEN) return
     const line = tok.loc.start.line
     if (ignoreLines.has(line)) return
     const visualCol = getVisualColumn(src, tok.start)
