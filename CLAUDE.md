@@ -33,5 +33,3 @@ Planning artifacts live in `.planning/` (git-ignored).
 - Roadmap: `.planning/ROADMAP.md`
 - Execution state: `.planning/STATE.md`
 - Config: `.planning/config.json`
-
-Run `/gsd-plan-phase 1` to begin Phase 1 (Fix High Severity Bugs).
