@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.4](https://github.com/mutineerjs/mutineer/compare/v0.12.3...v0.12.4) (2026-05-11)
+
+
+### Fixed
+
+* use correct npm package name in init config template ([26f770d](https://github.com/mutineerjs/mutineer/commit/26f770d3bc9af5c398b3e947dfa06c628e162e6b))
+
 ## [0.12.3](https://github.com/mutineerjs/mutineer/compare/v0.12.2...v0.12.3) (2026-05-05)
 
 
