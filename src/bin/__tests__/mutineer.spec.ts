@@ -1,7 +1,18 @@
 import { createRequire } from 'node:module'
 import readline from 'node:readline'
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { HELP_TEXT, getVersion, confirmFullRun } from '../mutineer.js'
+import {
+  HELP_TEXT,
+  getVersion,
+  confirmFullRun,
+  CONFIG_TEMPLATE,
+} from '../mutineer.js'
+
+describe('CONFIG_TEMPLATE', () => {
+  it('imports from @mutineerjs/mutineer', () => {
+    expect(CONFIG_TEMPLATE).toContain("from '@mutineerjs/mutineer'")
+  })
+})
 
 describe('HELP_TEXT', () => {
   const flags = [

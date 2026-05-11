@@ -47,8 +47,8 @@ export function getVersion(): string {
   return require('../../package.json').version
 }
 
-const CONFIG_TEMPLATE = `\
-import { defineMutineerConfig } from 'mutineer'
+export const CONFIG_TEMPLATE = `\
+import { defineMutineerConfig } from '@mutineerjs/mutineer'
 
 export default defineMutineerConfig({
   source: 'src',
